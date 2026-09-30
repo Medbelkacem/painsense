@@ -1,10 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/auth/AuthProvider'
-import { DISCLAIMER } from '@/components/Disclaimer'
+import { AuthPanel } from '@/components/AuthPanel'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/field'
 import { Notice } from '@/components/ui/feedback'
@@ -38,61 +38,45 @@ export function LoginPage() {
   })
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex items-center gap-3">
-          <img src="/icon.svg" alt="" className="size-10 rounded-lg" />
-          <div>
-            <h1 className="text-lg font-semibold text-ink">Pain Score</h1>
-            <p className="text-[0.8125rem] text-muted">Clinical decision support</p>
-          </div>
-        </div>
+    <AuthPanel title="Log in" subtitle="Use your clinical workspace account.">
+      <form onSubmit={onSubmit} className="space-y-4" noValidate>
+        {failure && <Notice tone="alert">{failure}</Notice>}
 
-        <form
-          onSubmit={onSubmit}
-          className="space-y-4 rounded-lg border border-line bg-surface p-5"
-          noValidate
-        >
-          <div>
-            <h2 className="text-sm font-semibold text-ink">Sign in</h2>
-            <p className="mt-0.5 text-[0.8125rem] text-muted">
-              Accounts are created by an administrator.
-            </p>
-          </div>
+        <Field label="Email address" error={errors.email?.message} required>
+          {(props) => (
+            <Input
+              {...props}
+              {...register('email')}
+              type="email"
+              autoComplete="username"
+              autoFocus
+              placeholder="name@hospital.example"
+            />
+          )}
+        </Field>
 
-          {failure && <Notice tone="alert">{failure}</Notice>}
+        <Field label="Password" error={errors.password?.message} required>
+          {(props) => (
+            <Input
+              {...props}
+              {...register('password')}
+              type="password"
+              autoComplete="current-password"
+            />
+          )}
+        </Field>
 
-          <Field label="Email address" error={errors.email?.message} required>
-            {(props) => (
-              <Input
-                {...props}
-                {...register('email')}
-                type="email"
-                autoComplete="username"
-                autoFocus
-                placeholder="name@hospital.example"
-              />
-            )}
-          </Field>
+        <Button type="submit" className="w-full" loading={isSubmitting}>
+          Log in
+        </Button>
 
-          <Field label="Password" error={errors.password?.message} required>
-            {(props) => (
-              <Input
-                {...props}
-                {...register('password')}
-                type="password"
-                autoComplete="current-password"
-              />
-            )}
-          </Field>
-
-          <Button type="submit" className="w-full" loading={isSubmitting}>
-            Sign in
-          </Button>
-        </form>
-
-        <p className="mt-5 text-xs leading-relaxed text-muted">{DISCLAIMER}</p>
-      </div>
-    </div>
+        <p className="text-center text-[0.8125rem] text-muted">
+          No account yet?{' '}
+          <Link to="/register" className="font-medium text-accent hover:underline">
+            Sign up
+          </Link>
+        </p>
+      </form>
+    </AuthPanel>
   )
 }

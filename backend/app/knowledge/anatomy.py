@@ -738,7 +738,15 @@ ORGANS = (
     ),
     Structure("ORG_SIGMOID_COLON", "Sigmoid colon", ORGAN, "ABD_LLQ", LEFT, "Colon sigmoideum"),
     Structure("ORG_RECTUM", "Rectum", ORGAN, "PELVIS", MIDLINE, "Rectum"),
-    Structure("ORG_PERITONEUM", "Peritoneum", ORGAN, "ABD_DIFFUSE", MIDLINE, "Peritoneum"),
+    Structure(
+        "ORG_PERITONEUM",
+        "Peritoneum",
+        ORGAN,
+        "ABD_DIFFUSE",
+        MIDLINE,
+        "Peritoneum",
+        note="Lines the abdominal cavity, so it is selected from the list rather than pointed at.",
+    ),
     Structure(
         "ORG_KIDNEY",
         "Kidney",

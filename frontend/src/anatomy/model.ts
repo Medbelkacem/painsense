@@ -431,6 +431,9 @@ const ORGANS: readonly Part[] = [
   },
   { code: 'ORG_PANCREAS', shape: capsule(0.014, 0.085), at: [0.01, 1.135, -0.01], rotate: [0, 0, 80] },
   { code: 'ORG_SPLEEN', shape: ellipsoid([0.028, 0.036, 0.024]), at: [0.095, 1.175, -0.022] },
+  // No mesh for the peritoneum: it lines the cavity rather than filling a place in it, and
+  // a solid shape for it would sit in front of every abdominal organ and take their clicks.
+  // It is selected from the structure list, which is where diffuse findings belong anyway.
   { code: 'ORG_SMALL_INTESTINE', shape: ellipsoid([0.08, 0.055, 0.048]), at: [0, 1.075, 0.03] },
   { code: 'ORG_APPENDIX', shape: capsule(0.007, 0.038), at: [-0.055, 1.01, 0.042], rotate: [0, 0, -30] },
   { code: 'ORG_CAECUM', shape: ellipsoid([0.028, 0.03, 0.025]), at: [-0.068, 1.035, 0.035] },
@@ -446,7 +449,6 @@ const ORGANS: readonly Part[] = [
     ]),
   },
   { code: 'ORG_RECTUM', shape: capsule(0.015, 0.055), at: [0, 0.95, -0.02] },
-  { code: 'ORG_PERITONEUM', shape: ellipsoid([0.125, 0.105, 0.08]), at: [0, 1.1, 0.018] },
   { code: 'ORG_KIDNEY', shape: ellipsoid([0.02, 0.036, 0.026]), at: [0.07, 1.14, -0.05], mirror: true },
   {
     code: 'ORG_URETER',

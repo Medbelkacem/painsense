@@ -24,6 +24,7 @@ const SIDE_WORD: Record<Side, string> = {
 }
 
 export interface AnatomyViewerHandle {
+  /** Turns the model to show a structure. */
   focus: (code: string, side: Side) => void
 }
 
@@ -79,7 +80,14 @@ export function AnatomyViewer({
       onHover: setHovered,
     })
     sceneRef.current = scene
-    if (handleRef) handleRef.current = { focus: (code, side) => scene.focus(code, side) }
+    if (handleRef) {
+      handleRef.current = {
+        focus: (code, side) => {
+          const turned = scene.focus(code, side)
+          if (turned) setView(turned)
+        },
+      }
+    }
 
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect

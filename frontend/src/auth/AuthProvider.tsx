@@ -10,6 +10,8 @@ interface AuthState {
   ready: boolean
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
+  /** Adopt a session obtained elsewhere, such as the one registration returns. */
+  refresh: (user: User) => void
 }
 
 const AuthContext = createContext<AuthState | null>(null)
@@ -56,7 +58,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [queryClient])
 
-  const value = useMemo(() => ({ user, ready, signIn, signOut }), [user, ready, signIn, signOut])
+  const refresh = useCallback(
+    (next: User) => {
+      setUser(next)
+      queryClient.clear()
+    },
+    [queryClient],
+  )
+
+  const value = useMemo(
+    () => ({ user, ready, signIn, signOut, refresh }),
+    [user, ready, signIn, signOut, refresh],
+  )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

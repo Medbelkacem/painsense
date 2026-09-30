@@ -64,3 +64,30 @@ export const doctorSchema = z.object({
   registration_number: optionalText(255),
 })
 export type DoctorForm = z.infer<typeof doctorSchema>
+
+export const PROFESSIONS = [
+  { value: 'DOCTOR', label: 'Doctor' },
+  { value: 'NURSE', label: 'Nurse' },
+  { value: 'RESIDENT', label: 'Resident' },
+  { value: 'OTHER', label: 'Other clinical role' },
+] as const
+
+export const registrationSchema = z
+  .object({
+    display_name: z.string().min(2, 'Enter your name').max(120),
+    email: z.string().min(1, 'Enter your email address').email('That is not a valid email address'),
+    password: z.string().min(12, 'At least 12 characters'),
+    clinic_name: z.string().min(2, 'Enter the name of your clinic or hospital').max(160),
+    phone: z.string().min(5, 'Enter a telephone number').max(48),
+    profession: z.enum(['DOCTOR', 'NURSE', 'RESIDENT', 'OTHER']),
+    speciality: optionalText(255),
+    registration_number: optionalText(255),
+  })
+  // The API applies the same rule; repeating it here is what lets the field show its own
+  // message instead of the form failing on submit.
+  .refine((values) => values.profession !== 'DOCTOR' || Boolean(values.speciality), {
+    message: 'Enter your speciality',
+    path: ['speciality'],
+  })
+
+export type RegistrationForm = z.infer<typeof registrationSchema>

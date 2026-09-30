@@ -19,16 +19,16 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'Pain Score',
-        short_name: 'Pain Score',
+        name: 'PainSense AI',
+        short_name: 'PainSense',
         description:
-          'Clinical decision support for pain assessment from findings entered by a clinician.',
+          'Intelligent pain assessment and clinical decision support.',
         start_url: '/',
         scope: '/',
         display: 'standalone',
         orientation: 'portrait-primary',
-        background_color: '#f6f8fa',
-        theme_color: '#0e7490',
+        background_color: '#f2f6fb',
+        theme_color: '#0b3c7d',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },

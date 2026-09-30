@@ -9,8 +9,8 @@ import {
   Menu,
   Network,
   ScrollText,
-  ShieldCheck,
   Settings as SettingsIcon,
+  ShieldCheck,
   Users,
   X,
 } from 'lucide-react'
@@ -19,53 +19,46 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { useAuth } from '@/auth/AuthProvider'
 import { DISCLAIMER } from '@/components/Disclaimer'
+import { Lockup } from '@/components/Logo'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/utils/cn'
 
-const CLINICAL = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/patients', label: 'Patients', icon: Users },
-  { to: '/reports', label: 'Assessments', icon: ClipboardList },
-  { to: '/analytics', label: 'Analytics', icon: Activity },
+const GROUPS = [
+  {
+    label: 'Clinical',
+    items: [
+      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/patients', label: 'Patients', icon: Users },
+      { to: '/reports', label: 'Assessments', icon: ClipboardList },
+    ],
+  },
+  {
+    label: 'Insights',
+    items: [
+      { to: '/analytics', label: 'Analytics', icon: Activity },
+      { to: '/ai-model', label: 'AI models', icon: BrainCircuit },
+      { to: '/datasets', label: 'Dataset', icon: Boxes },
+    ],
+  },
+  {
+    label: 'Trust',
+    items: [
+      { to: '/integrity', label: 'Integrity', icon: FileText },
+      { to: '/security', label: 'Security', icon: ShieldCheck },
+      { to: '/audit', label: 'Audit', icon: ScrollText },
+      { to: '/architecture', label: 'Architecture', icon: Network },
+    ],
+  },
 ]
 
-const PLATFORM = [
-  { to: '/ai-model', label: 'Model', icon: BrainCircuit },
-  { to: '/datasets', label: 'Datasets', icon: Boxes },
-  { to: '/integrity', label: 'Integrity', icon: FileText },
-  { to: '/security', label: 'Security', icon: ShieldCheck },
-  { to: '/audit', label: 'Audit trail', icon: ScrollText },
-  { to: '/architecture', label: 'Architecture', icon: Network },
-]
-
-function NavItem({
-  to,
-  label,
-  icon: Icon,
-  onNavigate,
-}: {
-  to: string
-  label: string
-  icon: typeof Users
-  onNavigate: () => void
-}) {
-  return (
-    <NavLink
-      to={to}
-      onClick={onNavigate}
-      className={({ isActive }) =>
-        cn(
-          'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors',
-          isActive
-            ? 'bg-accent-soft font-medium text-accent-strong'
-            : 'text-body hover:bg-canvas hover:text-ink',
-        )
-      }
-    >
-      <Icon aria-hidden className="size-4 shrink-0" />
-      {label}
-    </NavLink>
-  )
+function initials(name: string) {
+  return name
+    .replace(/^(Dr|Pr|Mr|Ms|Mrs)\.?\s+/i, '')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('')
 }
 
 export function AppLayout() {
@@ -75,28 +68,49 @@ export function AppLayout() {
 
   useEffect(() => setMenuOpen(false), [location.pathname])
 
-  const close = () => setMenuOpen(false)
-
   const nav = (
-    <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-4">
-      <div className="space-y-0.5">
-        <p className="px-2.5 pb-1 text-[0.6875rem] font-semibold tracking-wider text-faint uppercase">
-          Clinical
-        </p>
-        {CLINICAL.map((item) => (
-          <NavItem key={item.to} {...item} onNavigate={close} />
-        ))}
-      </div>
-      <div className="space-y-0.5">
-        <p className="px-2.5 pb-1 text-[0.6875rem] font-semibold tracking-wider text-faint uppercase">
-          Platform
-        </p>
-        {PLATFORM.map((item) => (
-          <NavItem key={item.to} {...item} onNavigate={close} />
-        ))}
-      </div>
+    <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-4">
+      {GROUPS.map((group) => (
+        <div key={group.label} className="space-y-0.5">
+          <p className="px-2.5 pb-1 text-[0.625rem] font-semibold tracking-[0.14em] text-faint uppercase">
+            {group.label}
+          </p>
+          {group.items.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={() => setMenuOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors',
+                  isActive
+                    ? 'bg-accent-soft font-medium text-accent'
+                    : 'text-body hover:bg-canvas hover:text-ink',
+                )
+              }
+            >
+              <item.icon aria-hidden className="size-4 shrink-0" />
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      ))}
       <div className="mt-auto space-y-0.5">
-        <NavItem to="/settings" label="Settings" icon={SettingsIcon} onNavigate={close} />
+        <NavLink
+          to="/settings"
+          onClick={() => setMenuOpen(false)}
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors',
+              isActive
+                ? 'bg-accent-soft font-medium text-accent'
+                : 'text-body hover:bg-canvas hover:text-ink',
+            )
+          }
+        >
+          <SettingsIcon aria-hidden className="size-4 shrink-0" />
+          Settings
+        </NavLink>
       </div>
     </nav>
   )
@@ -120,18 +134,18 @@ export function AppLayout() {
           <button
             type="button"
             aria-label="Close menu"
-            className="absolute inset-0 bg-ink/40"
-            onClick={close}
+            className="absolute inset-0 bg-brand-ink/50"
+            onClick={() => setMenuOpen(false)}
           />
           <aside className="relative flex h-full w-64 flex-col border-r border-line bg-surface">
-            <Brand onClose={close} />
+            <Brand onClose={() => setMenuOpen(false)} />
             {nav}
           </aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-surface/95 px-4 py-2.5 backdrop-blur">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-surface/90 px-4 py-2.5 backdrop-blur">
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
@@ -141,20 +155,28 @@ export function AppLayout() {
             <Menu className="size-5" />
           </button>
           <div className="lg:hidden">
-            <span className="text-sm font-semibold text-ink">Pain Score</span>
+            <Lockup markClassName="size-6" wordClassName="text-[0.9375rem]" />
           </div>
-          <div className="ml-auto flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-[0.8125rem] leading-tight font-medium text-ink">
-                {user?.display_name}
-              </p>
-              <p className="text-xs leading-tight text-muted">
-                {user?.role === 'ADMIN' ? 'Administrator' : (user?.speciality ?? 'Doctor')}
-              </p>
+
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
+            <div className="flex items-center gap-2.5 rounded-full border border-line py-1 pr-3 pl-1">
+              <span className="flex size-7 items-center justify-center rounded-full bg-accent-soft text-[0.6875rem] font-semibold text-accent">
+                {initials(user?.display_name ?? '')}
+              </span>
+              <span className="hidden leading-tight sm:block">
+                <span className="block text-[0.8125rem] font-medium text-ink">
+                  {user?.display_name}
+                </span>
+                <span className="block text-[0.6875rem] text-muted">
+                  {user?.role === 'ADMIN'
+                    ? 'Administrator'
+                    : (user?.speciality ?? user?.clinic_name ?? 'Clinician')}
+                </span>
+              </span>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => void signOut()}>
+            <Button variant="ghost" size="sm" onClick={() => void signOut()} aria-label="Sign out">
               <LogOut aria-hidden className="size-4" />
-              <span className="hidden sm:inline">Sign out</span>
             </Button>
           </div>
         </header>
@@ -175,12 +197,8 @@ export function AppLayout() {
 
 function Brand({ onClose }: { onClose?: () => void }) {
   return (
-    <div className="flex items-center gap-2.5 border-b border-line px-4 py-3.5">
-      <img src="/icon.svg" alt="" className="size-7 rounded" />
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-ink">Pain Score</p>
-        <p className="truncate text-[0.6875rem] text-muted">Clinical decision support</p>
-      </div>
+    <div className="flex items-center gap-2 border-b border-line px-4 py-3.5">
+      <Lockup markClassName="size-7" wordClassName="text-[1.0625rem]" />
       {onClose && (
         <button
           type="button"

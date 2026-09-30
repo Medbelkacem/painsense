@@ -1,62 +1,196 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/sora';
 
-@theme {
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+/* The class is set on <html> by the theme provider; `system` resolves to one of the two. */
+@custom-variant dark (&:where(.dark, .dark *));
 
-  --color-canvas: #f5f8fa;
-  --color-surface: #ffffff;
-  --color-raised: #fbfdfe;
-  --color-line: #dde6ed;
-  --color-line-strong: #c3d2de;
+/*
+ * PainSense AI palette.
+ *
+ * Clinical Blue carries the brand and every primary action. Signal Teal is the waveform
+ * and the "AI" half of the wordmark, darkened to #0E8F9B whenever it has to be read as
+ * text. Neural Violet is reserved for the model's own output — the estimate, its interval
+ * and its feature contributions — so that what the model produced is never confused with
+ * what a clinician recorded or a rule decided.
+ */
+:root {
+  --brand-blue: #0b3c7d;
+  --brand-blue-deep: #082c5c;
+  --brand-teal: #14b8c4;
+  --brand-teal-text: #0e8f9b;
+  --brand-violet: #7c5cff;
+  --brand-ink: #0b1b33;
 
-  --color-ink: #0f1f2e;
-  --color-body: #33475b;
-  --color-muted: #64798f;
-  --color-faint: #90a3b5;
+  --canvas: #f2f6fb;
+  --surface: #ffffff;
+  --raised: #f8fafd;
+  --line: #e1e9f3;
+  --line-strong: #c6d5e6;
 
-  --color-accent: #0e7490;
-  --color-accent-strong: #115e72;
-  --color-accent-soft: #e6f3f7;
+  --ink: #0b1b33;
+  --body: #33475b;
+  --muted: #62778f;
+  --faint: #8fa3b8;
 
-  /* Pain bands. Also used by the report, so the two stay recognisably the same product. */
-  --color-band-none: #0f766e;
-  --color-band-mild: #15803d;
-  --color-band-moderate: #b45309;
-  --color-band-severe: #c2410c;
-  --color-band-extreme: #b91c1c;
+  --accent: #0b3c7d;
+  --accent-strong: #082c5c;
+  --accent-soft: #e8f0fa;
+  --accent-contrast: #ffffff;
 
-  --color-alert: #b91c1c;
-  --color-alert-soft: #fdf0ef;
-  --color-caution: #b45309;
-  --color-caution-soft: #fdf6ec;
-  --color-positive: #15803d;
-  --color-positive-soft: #edf7f0;
+  --teal: #0e8f9b;
+  --teal-soft: #e4f6f8;
+  --violet: #6b4bf0;
+  --violet-soft: #efecff;
+
+  --band-none: #0f766e;
+  --band-mild: #15803d;
+  --band-moderate: #b45309;
+  --band-severe: #c2410c;
+  --band-extreme: #b91c1c;
+
+  --alert: #c02626;
+  --alert-soft: #fdeeee;
+  --caution: #b45309;
+  --caution-soft: #fdf5e9;
+  --positive: #15803d;
+  --positive-soft: #ecf7ef;
+
+  /* The mark keeps Clinical Blue on light ground and reverses out on dark. */
+  --mark-body: #0b3c7d;
+  --mark-word: #0b3c7d;
+
+  --shadow-card: 0 1px 2px rgb(11 27 51 / 0.05);
+  --shadow-raised: 0 8px 24px -12px rgb(11 27 51 / 0.25);
+}
+
+.dark {
+  --canvas: #060b16;
+  --surface: #0d1526;
+  --raised: #121c31;
+  --line: #1d2a42;
+  --line-strong: #2b3b58;
+
+  --ink: #e9eff8;
+  --body: #b8c6da;
+  --muted: #8296b0;
+  --faint: #5f7391;
+
+  --accent: #3b82f6;
+  --accent-strong: #60a5fa;
+  --accent-soft: #14264a;
+  --accent-contrast: #061024;
+
+  --teal: #2dd4bf;
+  --teal-soft: #0d2b33;
+  --violet: #a78bfa;
+  --violet-soft: #221a44;
+
+  --band-none: #2dd4bf;
+  --band-mild: #4ade80;
+  --band-moderate: #fbbf24;
+  --band-severe: #fb923c;
+  --band-extreme: #f87171;
+
+  --alert: #f87171;
+  --alert-soft: #2a1216;
+  --caution: #fbbf24;
+  --caution-soft: #2a2010;
+  --positive: #4ade80;
+  --positive-soft: #10281a;
+
+  --mark-body: #ffffff;
+  --mark-word: #f1f6fd;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-raised: 0 12px 32px -16px rgb(0 0 0 / 0.7);
+}
+
+@theme inline {
+  --font-sans: 'Sora Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
+
+  --color-teal: var(--teal);
+  --color-teal-soft: var(--teal-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+
+  --color-mark-body: var(--mark-body);
+  --color-mark-word: var(--mark-word);
+
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-blue-deep: var(--brand-blue-deep);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-ink: var(--brand-ink);
+
+  --color-band-none: var(--band-none);
+  --color-band-mild: var(--band-mild);
+  --color-band-moderate: var(--band-moderate);
+  --color-band-severe: var(--band-severe);
+  --color-band-extreme: var(--band-extreme);
+
+  --color-alert: var(--alert);
+  --color-alert-soft: var(--alert-soft);
+  --color-caution: var(--caution);
+  --color-caution-soft: var(--caution-soft);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
 }
 
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {
     margin: 0;
-    background: var(--color-canvas);
-    color: var(--color-ink);
-    font-family: var(--font-sans);
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: 'Sora Variable', ui-sans-serif, system-ui, sans-serif;
     font-size: 0.9375rem;
+    font-weight: 400;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
   }
 
+  h1,
+  h2,
+  h3 {
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
   :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 
-  /* Numeric columns line up when the digits share a width. */
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* The wordmark sets its own tracking, which the brand sheet puts at -3.5%. */
+  .wordmark {
+    font-weight: 600;
+    letter-spacing: -0.035em;
   }
 }

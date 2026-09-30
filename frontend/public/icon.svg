@@ -1,11 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pain Score">
-  <rect width="64" height="64" rx="14" fill="#0e7490" />
-  <g fill="#ffffff">
-    <rect x="9.9" y="34" width="8.3" height="9.6" rx="3" opacity="0.32" />
-    <rect x="19.6" y="34" width="8.3" height="9.6" rx="3" opacity="0.49" />
-    <rect x="29.3" y="34" width="8.3" height="9.6" rx="3" opacity="0.66" />
-    <rect x="39" y="34" width="8.3" height="9.6" rx="3" opacity="0.83" />
-    <rect x="48.7" y="34" width="8.3" height="9.6" rx="3" />
-    <path d="M43.15 31.4 L37.5 24.8 L48.8 24.8 Z" />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-label="PainSense">
+  <circle cx="24" cy="12.4" r="6.1" stroke="#0B3C7D" stroke-width="3.6"/>
+  <circle cx="24" cy="12.4" r="2.5" fill="#7C5CFF"/>
+  <path d="M9.4 42.6V33.4a14.6 14.6 0 0 1 29.2 0v9.2" stroke="#0B3C7D" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M12.6 34.2h4.2l2.4-6.4 3.6 12.2 3.1-9.6 2 3.8h5.5" stroke="#14B8C4" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

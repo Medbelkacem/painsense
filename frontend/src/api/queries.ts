@@ -11,7 +11,6 @@ import type {
   Comparison,
   Confounder,
   DatasetVersion,
-  DemoCase,
   Disease,
   Factor,
   History,
@@ -66,7 +65,6 @@ export const useConfounders = catalogue<Confounder>('confounders', '/api/confoun
 export const useBands = catalogue<Band>('bands', '/api/pain-bands')
 export const useVitalRanges = catalogue<VitalRange>('vital-ranges', '/api/physiology/ranges')
 export const useAllQuestions = catalogue<Question>('questions', '/api/clinical-questions')
-export const useDemoCases = catalogue<DemoCase>('demo-cases', '/api/demo/cases')
 
 /**
  * The anatomy ontology behind the 3D model. One payload, cached for the session like the
@@ -329,14 +327,6 @@ export function useUpdateDoctor(id: string) {
   return useMutation({
     mutationFn: (body: unknown) => api.patch<User>(`/api/doctors/${id}`, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.doctors }),
-  })
-}
-
-export function useLoadDemo() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: () => api.post<Record<string, unknown>>('/api/demo/load'),
-    onSuccess: () => queryClient.invalidateQueries(),
   })
 }
 

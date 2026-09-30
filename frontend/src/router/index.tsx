@@ -1,8 +1,9 @@
 import type { ComponentType } from 'react'
-import { Navigate, createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router-dom'
 
 import { RequireAuth } from '@/auth/RequireAuth'
 import { AppLayout } from '@/layouts/AppLayout'
+import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
@@ -17,7 +18,12 @@ function page(load: () => Promise<Record<string, unknown>>, name: string) {
 }
 
 export const router = createBrowserRouter([
+  { path: '/', element: <LandingPage /> },
   { path: '/login', element: <LoginPage /> },
+  {
+    path: '/register',
+    lazy: page(() => import('@/pages/RegisterPage'), 'RegisterPage'),
+  },
   {
     element: (
       <RequireAuth>
@@ -25,7 +31,6 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', lazy: page(() => import('@/pages/DashboardPage'), 'DashboardPage') },
       {
         path: 'patients',

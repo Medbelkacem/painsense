@@ -1,4 +1,5 @@
 export type Role = 'DOCTOR' | 'ADMIN'
+export type Profession = 'DOCTOR' | 'NURSE' | 'RESIDENT' | 'OTHER'
 export type Sex = 'F' | 'M' | 'OTHER' | 'UNDISCLOSED'
 export type SmokingStatus = 'NEVER' | 'FORMER' | 'CURRENT' | 'UNKNOWN'
 export type AssessmentStatus = 'DRAFT' | 'ESTIMATED' | 'VALIDATED'
@@ -34,6 +35,9 @@ export interface User {
   id: string
   email: string
   display_name: string
+  clinic_name: string | null
+  phone: string | null
+  profession: Profession
   role: Role
   registration_number: string | null
   speciality: string | null
@@ -560,13 +564,6 @@ export interface ModelStatus {
   limitations: string[]
 }
 
-export interface DemoCase {
-  ref: string
-  title: string
-  summary: string
-  visits: number
-  ward: string
-}
 
 export interface Band {
   code: BandCode

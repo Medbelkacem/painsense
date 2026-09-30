@@ -11,7 +11,7 @@ async function signIn(page: Page) {
   await page.goto('/login')
   await page.getByLabel('Email address').fill(DOCTOR.email)
   await page.getByLabel('Password').fill(DOCTOR.password)
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Log in' }).click()
   await expect(page).toHaveURL(/\/dashboard/)
 }
 
@@ -197,4 +197,57 @@ test('the platform pages report what was measured', async ({ page }) => {
   await expect(page.getByText('MAE', { exact: true })).toBeVisible()
   await expect(page.getByText(/Trained on synthetic data only/).first()).toBeVisible()
   await expect(page.getByText(/never an inference feature/)).toBeVisible()
+})
+
+
+test('a visitor meets the landing page and can reach both doors', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: /Understand pain/ })).toBeVisible()
+  await expect(page.getByText(/does not constitute a medical diagnosis/)).toBeVisible()
+
+  await page.getByRole('link', { name: 'Sign up' }).click()
+  await expect(page).toHaveURL(/\/register/)
+  await expect(page.getByLabel('Clinic or hospital')).toBeVisible()
+  await expect(page.getByLabel('Telephone')).toBeVisible()
+  await expect(page.getByLabel('Speciality')).toBeVisible()
+
+  // Speciality is a doctor's field, so it goes away for the other roles.
+  await page.getByLabel('Role').selectOption('NURSE')
+  await expect(page.getByLabel('Speciality')).toHaveCount(0)
+
+  await page.getByRole('link', { name: 'Log in' }).click()
+  await expect(page).toHaveURL(/\/login/)
+})
+
+test('a clinician can register and lands signed in without administrator rights', async ({ page }) => {
+  const suffix = Date.now().toString().slice(-7)
+  await page.goto('/register')
+  await page.getByLabel('Your name').fill('Dr Karima Belhadj')
+  await page.getByLabel('Clinic or hospital').fill('Clinique El Mahdi')
+  await page.getByLabel('Telephone').fill('+213 770 41 25 08')
+  await page.getByLabel('Speciality').fill('Rheumatology')
+  await page.getByLabel('Email address').fill(`k.belhadj${suffix}@clinique-elmahdi.dz`)
+  await page.getByLabel('Password').fill('Consultation-ElMahdi-2026')
+  await page.getByRole('button', { name: 'Create account' }).click()
+
+  await expect(page).toHaveURL(/\/dashboard/)
+  await page.goto('/settings')
+  await expect(page.getByText('Clinique El Mahdi')).toBeVisible()
+  await expect(page.getByText('Account management is available to administrators.')).toBeVisible()
+})
+
+test('the theme can be switched and is remembered', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.locator('html')).not.toHaveClass(/dark/)
+
+  await page.goto('/settings')
+  await signIn(page)
+  await page.goto('/settings')
+  await page.getByRole('radio', { name: 'Dark' }).click()
+  await expect(page.locator('html')).toHaveClass(/dark/)
+
+  await page.reload()
+  await expect(page.locator('html')).toHaveClass(/dark/)
+  await page.getByRole('radio', { name: 'Light' }).click()
+  await expect(page.locator('html')).not.toHaveClass(/dark/)
 })

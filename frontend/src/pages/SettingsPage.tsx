@@ -2,10 +2,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 
-import { useCreateDoctor, useDemoCases, useDoctors, useLoadDemo, useUpdateDoctor } from '@/api/queries'
+import { useCreateDoctor, useDoctors, useUpdateDoctor } from '@/api/queries'
 import type { User } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { PageHeader } from '@/components/PageHeader'
+import { ThemeChoice } from '@/components/ThemeToggle'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader, DescriptionList, DescriptionRow } from '@/components/ui/card'
@@ -32,6 +33,8 @@ export function SettingsPage() {
             <DescriptionRow term="Role">
               {user?.role === 'ADMIN' ? 'Administrator' : 'Doctor'}
             </DescriptionRow>
+            <DescriptionRow term="Clinic or hospital">{user?.clinic_name ?? '—'}</DescriptionRow>
+            <DescriptionRow term="Telephone">{user?.phone ?? '—'}</DescriptionRow>
             <DescriptionRow term="Speciality">{user?.speciality ?? '—'}</DescriptionRow>
             <DescriptionRow term="Registration">{user?.registration_number ?? '—'}</DescriptionRow>
             <DescriptionRow term="Last sign-in">{formatDateTime(user?.last_login_at)}</DescriptionRow>
@@ -39,63 +42,22 @@ export function SettingsPage() {
         </CardBody>
       </Card>
 
+      <Card>
+        <CardHeader
+          title="Appearance"
+          description="Dark mode follows the design's night-shift setting. System follows the device."
+        />
+        <CardBody>
+          <ThemeChoice />
+        </CardBody>
+      </Card>
+
       {isAdmin ? (
-        <>
-          <DemoSection />
-          <AccountsSection />
-        </>
+        <AccountsSection />
       ) : (
-        <Notice tone="info">
-          Account management and demonstration data are available to administrators.
-        </Notice>
+        <Notice tone="info">Account management is available to administrators.</Notice>
       )}
     </>
-  )
-}
-
-function DemoSection() {
-  const cases = useDemoCases()
-  const load = useLoadDemo()
-
-  return (
-    <Card>
-      <CardHeader
-        title="Demonstration cases"
-        description="Seven synthetic patients covering different presentations. Loading is idempotent: a case already present is left alone."
-        actions={
-          <Button loading={load.isPending} onClick={() => load.mutate()}>
-            Load demonstration cases
-          </Button>
-        }
-      />
-      <CardBody className="space-y-3">
-        {load.isSuccess && (
-          <Notice tone="info">
-            {String(load.data.patients_created)} patients and{' '}
-            {String(load.data.assessments_created)} assessments created. Every record is marked
-            synthetic.
-          </Notice>
-        )}
-        {load.isError && (
-          <Notice tone="alert">
-            {load.error instanceof Error ? load.error.message : 'Unexpected error'}
-          </Notice>
-        )}
-        <ul className="divide-y divide-line">
-          {cases.data?.map((entry) => (
-            <li key={entry.ref} className="py-2.5">
-              <p className="text-sm font-medium text-ink">
-                {entry.title}
-                <span className="ml-2 text-xs font-normal text-muted">
-                  {entry.ward} · {entry.visits} visit{entry.visits === 1 ? '' : 's'}
-                </span>
-              </p>
-              <p className="text-[0.8125rem] text-body">{entry.summary}</p>
-            </li>
-          ))}
-        </ul>
-      </CardBody>
-    </Card>
   )
 }
 

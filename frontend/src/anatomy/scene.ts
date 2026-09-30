@@ -178,16 +178,32 @@ export class AnatomyScene {
     )
   }
 
-  /** Brings a structure into view, for when it was chosen from the list and not clicked. */
-  focus(code: string, side: Side): boolean {
+  /**
+   * Turns the model to show a structure, for when it was chosen from the list and not
+   * clicked.
+   *
+   * It turns rather than flies in: a clinician who has just named a structure wants to see
+   * where on the body it is, and diving to within a few centimetres of it takes away the
+   * only thing that answers that. The view it settled on is returned so the toolbar can
+   * say which one it is.
+   */
+  focus(code: string, side: Side): ViewName | null {
     const anchor = this.model.anchors.get(siteKey(code, side))
-    if (!anchor) return false
-    const direction = this.camera.position.clone().sub(this.controls.target)
-    this.target.copy(anchor)
-    this.controls.target.copy(anchor)
-    this.camera.position.copy(anchor).add(direction.setLength(Math.max(MIN_DISTANCE, 0.55)))
-    this.controls.update()
-    return true
+    if (!anchor) return null
+    const offset = anchor.clone().sub(new THREE.Vector3(...FIGURE_CENTRE))
+    // Sideways only when the structure is clearly off the midline, so a deep midline organ
+    // is shown from the front or the back rather than edge on.
+    const view: ViewName =
+      Math.abs(offset.x) > Math.abs(offset.z) + 0.05
+        ? offset.x > 0
+          ? 'left'
+          : 'right'
+        : offset.z >= 0
+          ? 'front'
+          : 'back'
+    this.resetView()
+    this.setView(view)
+    return view
   }
 
   resize(width: number, height: number): void {
