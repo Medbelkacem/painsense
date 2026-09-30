@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+dev-dist/
+
+# Secrets and local state
+.env
+*.db
+
+# Generated at runtime: keys, trained artifacts, synthetic datasets, uploaded documents
+keystore/
+models/
+datasets/
+storage/
+
+# Test output
+playwright-report/
+test-results/

@@ -1,0 +1,62 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+
+  --color-canvas: #f5f8fa;
+  --color-surface: #ffffff;
+  --color-raised: #fbfdfe;
+  --color-line: #dde6ed;
+  --color-line-strong: #c3d2de;
+
+  --color-ink: #0f1f2e;
+  --color-body: #33475b;
+  --color-muted: #64798f;
+  --color-faint: #90a3b5;
+
+  --color-accent: #0e7490;
+  --color-accent-strong: #115e72;
+  --color-accent-soft: #e6f3f7;
+
+  /* Pain bands. Also used by the report, so the two stay recognisably the same product. */
+  --color-band-none: #0f766e;
+  --color-band-mild: #15803d;
+  --color-band-moderate: #b45309;
+  --color-band-severe: #c2410c;
+  --color-band-extreme: #b91c1c;
+
+  --color-alert: #b91c1c;
+  --color-alert-soft: #fdf0ef;
+  --color-caution: #b45309;
+  --color-caution-soft: #fdf6ec;
+  --color-positive: #15803d;
+  --color-positive-soft: #edf7f0;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* Numeric columns line up when the digits share a width. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

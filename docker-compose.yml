@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: painscore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-painscore}
+      POSTGRES_DB: painscore
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U painscore -d painscore']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://painscore:${POSTGRES_PASSWORD:-painscore}@postgres:5432/painscore
+      MASTER_KEY: ${MASTER_KEY:?set MASTER_KEY in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+      KEY_STORE_PATH: /srv/keystore
+      MODEL_STORE_PATH: /srv/models
+      DATASET_PATH: /srv/datasets
+      DOCUMENT_STORE_PATH: /srv/storage/documents
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      PAINSCORE_ENV: ${PAINSCORE_ENV:-production}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Administrator}
+    volumes:
+      - keystore:/srv/keystore
+      - models:/srv/models
+      - datasets:/srv/datasets
+      - documents:/srv/storage/documents
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - '8080:8080'
+    depends_on:
+      - backend
+
+volumes:
+  postgres-data:
+  keystore:
+  models:
+  datasets:
+  documents:

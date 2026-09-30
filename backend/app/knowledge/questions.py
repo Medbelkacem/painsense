@@ -1,0 +1,786 @@
+"""Configuration-driven clinical questionnaire.
+
+Each question carries the criteria under which it is worth asking. The API returns the
+applicable set for the current picture and the client renders whatever it is given, so a
+new question is one entry here and no frontend change.
+
+Questions cover what the fixed part of the assessment cannot: the fields that only make
+sense for a particular site, age, sex or comorbidity. Anything asked of every patient
+(site, character, time course, radiation, aggravating factors, symptoms, vital signs) is
+a structured column on the assessment instead.
+"""
+
+from dataclasses import dataclass
+
+from app.knowledge.context import ClinicalContext, Criteria
+
+GROUPS = (
+    ("GENERAL", "General"),
+    ("REGIONAL", "Site-specific"),
+    ("NEUROPATHIC", "Neurological character"),
+    ("ONCOLOGICAL", "Cancer-related"),
+    ("POSTOPERATIVE", "Postoperative"),
+    ("CHRONIC", "Persistent pain"),
+    ("INVESTIGATIONS", "Available investigations"),
+)
+_GROUP_ORDER = {code: index for index, (code, _) in enumerate(GROUPS)}
+
+KINDS = ("BOOL", "SINGLE", "MULTI", "NUMBER", "TEXT")
+
+# A question with no criteria is asked of every patient.
+ALWAYS = Criteria()
+
+RESULT_OPTIONS = (
+    ("NOT_DONE", "Not done"),
+    ("NORMAL", "Normal"),
+    ("ABNORMAL", "Abnormal"),
+    ("PENDING", "Result pending"),
+)
+SEVERITY_OPTIONS = (
+    ("NONE", "None"),
+    ("MILD", "Mild"),
+    ("MODERATE", "Moderate"),
+    ("SEVERE", "Severe"),
+)
+
+
+@dataclass(frozen=True)
+class Question:
+    code: str
+    prompt: str
+    kind: str
+    group: str
+    when: Criteria = ALWAYS
+    options: tuple[tuple[str, str], ...] = ()
+    unit: str | None = None
+    minimum: float | None = None
+    maximum: float | None = None
+    help_text: str = ""
+    order: int = 50
+
+
+_CHEST = Criteria(regions=("CHEST",))
+_ABDOMEN = Criteria(regions=("ABDOMEN", "PELVIS"))
+_BACK = Criteria(regions=("BACK",))
+_HEAD = Criteria(regions=("HEAD", "NECK"))
+_LIMB = Criteria(regions=("UPPER_LIMB", "LOWER_LIMB"))
+_NEUROPATHIC_PICTURE = Criteria(
+    qualities=("BURNING", "ELECTRIC", "SHOOTING", "TINGLING", "NUMBNESS"),
+)
+
+QUESTIONS = (
+    Question(
+        "FIRST_EPISODE",
+        "Is this the first episode of this pain?",
+        "BOOL",
+        "GENERAL",
+        order=10,
+    ),
+    Question(
+        "SIMILAR_PAST_PAIN",
+        "Is the current pain similar to the previous episodes?",
+        "BOOL",
+        "GENERAL",
+        when=Criteria(answer_equals=(("FIRST_EPISODE", False),)),
+        order=11,
+    ),
+    Question(
+        "FUNCTIONAL_IMPACT",
+        "How much does the pain limit usual activity?",
+        "SINGLE",
+        "GENERAL",
+        options=SEVERITY_OPTIONS,
+        order=12,
+    ),
+    Question(
+        "SLEEP_DISTURBED",
+        "Does the pain wake the patient or prevent sleep?",
+        "BOOL",
+        "GENERAL",
+        order=13,
+    ),
+    Question(
+        "ANALGESIA_TAKEN",
+        "Has the patient taken any analgesia for this pain?",
+        "BOOL",
+        "GENERAL",
+        order=14,
+    ),
+    Question(
+        "ANALGESIA_DETAIL",
+        "Which analgesia, and at what dose?",
+        "TEXT",
+        "GENERAL",
+        when=Criteria(answer_equals=(("ANALGESIA_TAKEN", True),)),
+        order=15,
+    ),
+    Question(
+        "ANALGESIA_EFFECT",
+        "How much did it help?",
+        "SINGLE",
+        "GENERAL",
+        when=Criteria(answer_equals=(("ANALGESIA_TAKEN", True),)),
+        options=(
+            ("NONE", "No relief"),
+            ("PARTIAL", "Partial relief"),
+            ("GOOD", "Good relief"),
+            ("UNKNOWN", "Too early to say"),
+        ),
+        order=16,
+    ),
+    Question(
+        "TRAUMA_RECENT",
+        "Was there any injury or trauma before the pain started?",
+        "BOOL",
+        "GENERAL",
+        order=17,
+    ),
+    Question(
+        "TRAUMA_MECHANISM",
+        "Describe the mechanism of injury.",
+        "TEXT",
+        "GENERAL",
+        when=Criteria(answer_equals=(("TRAUMA_RECENT", True),)),
+        order=18,
+    ),
+    Question(
+        "SURGERY_LAST_30_DAYS",
+        "Any surgery in the last 30 days?",
+        "BOOL",
+        "GENERAL",
+        order=19,
+    ),
+    Question(
+        "CHEST_EXERTIONAL",
+        "Does the pain come on or worsen with exertion?",
+        "BOOL",
+        "REGIONAL",
+        when=_CHEST,
+        order=20,
+    ),
+    Question(
+        "CHEST_RELIEVED_BY_REST",
+        "Does it settle within minutes of stopping?",
+        "BOOL",
+        "REGIONAL",
+        when=Criteria(regions=("CHEST",), answer_equals=(("CHEST_EXERTIONAL", True),)),
+        order=21,
+    ),
+    Question(
+        "CHEST_RADIATION_SITE",
+        "Where does the chest pain radiate?",
+        "MULTI",
+        "REGIONAL",
+        when=Criteria(regions=("CHEST",), radiates=True),
+        options=(
+            ("LEFT_ARM", "Left arm"),
+            ("RIGHT_ARM", "Right arm"),
+            ("BOTH_ARMS", "Both arms"),
+            ("JAW", "Jaw or neck"),
+            ("BACK", "Between the shoulder blades"),
+            ("EPIGASTRIUM", "Epigastrium"),
+        ),
+        order=22,
+    ),
+    Question(
+        "CHEST_PLEURITIC",
+        "Is the pain worse on deep inspiration or coughing?",
+        "BOOL",
+        "REGIONAL",
+        when=_CHEST,
+        order=23,
+    ),
+    Question(
+        "CHEST_POSITIONAL",
+        "Does the pain change with posture?",
+        "BOOL",
+        "REGIONAL",
+        when=_CHEST,
+        order=24,
+    ),
+    Question(
+        "CHEST_WALL_TENDER",
+        "Is the pain reproduced by pressing on the chest wall?",
+        "BOOL",
+        "REGIONAL",
+        when=_CHEST,
+        help_text="Reproducible tenderness supports a chest-wall origin but does not exclude others.",
+        order=25,
+    ),
+    Question(
+        "CHEST_REFLUX_PATTERN",
+        "Burning pain after meals or when lying flat?",
+        "BOOL",
+        "REGIONAL",
+        when=_CHEST,
+        order=26,
+    ),
+    Question(
+        "CHEST_PRIOR_CARDIAC_EVENT",
+        "Any previous myocardial infarction, angina or revascularisation?",
+        "BOOL",
+        "REGIONAL",
+        when=_CHEST,
+        order=27,
+    ),
+    Question(
+        "CHEST_THROMBOEMBOLIC_RISK",
+        "Recent immobilisation, long travel, active cancer or known thrombophilia?",
+        "BOOL",
+        "REGIONAL",
+        when=_CHEST,
+        order=28,
+    ),
+    Question(
+        "ABD_FOOD_RELATION",
+        "How does the pain relate to meals?",
+        "SINGLE",
+        "REGIONAL",
+        when=_ABDOMEN,
+        options=(
+            ("NO_RELATION", "No relation"),
+            ("WORSE_AFTER", "Worse after eating"),
+            ("BETTER_AFTER", "Better after eating"),
+            ("WORSE_FASTING", "Worse when fasting"),
+        ),
+        order=30,
+    ),
+    Question(
+        "ABD_PAIN_MIGRATED",
+        "Has the pain moved since it started?",
+        "BOOL",
+        "REGIONAL",
+        when=_ABDOMEN,
+        order=31,
+    ),
+    Question(
+        "ABD_LAST_BOWEL_MOTION",
+        "When was the last bowel motion?",
+        "SINGLE",
+        "REGIONAL",
+        when=_ABDOMEN,
+        options=(
+            ("TODAY", "Today"),
+            ("ONE_TWO_DAYS", "1 to 2 days ago"),
+            ("THREE_PLUS_DAYS", "3 days or more"),
+        ),
+        order=32,
+    ),
+    Question(
+        "ABD_FLATUS_PASSING",
+        "Is the patient passing flatus?",
+        "BOOL",
+        "REGIONAL",
+        when=_ABDOMEN,
+        order=33,
+    ),
+    Question(
+        "ABD_VOMIT_BILIOUS",
+        "Is the vomit bilious or faeculent?",
+        "BOOL",
+        "REGIONAL",
+        when=Criteria(regions=("ABDOMEN", "PELVIS"), symptoms=("VOMITING",)),
+        order=34,
+    ),
+    Question(
+        "ABD_GUARDING",
+        "Guarding, rigidity or rebound tenderness on examination?",
+        "BOOL",
+        "REGIONAL",
+        when=_ABDOMEN,
+        order=35,
+    ),
+    Question(
+        "ABD_PREVIOUS_SURGERY",
+        "Any previous abdominal or pelvic surgery?",
+        "BOOL",
+        "REGIONAL",
+        when=_ABDOMEN,
+        order=36,
+    ),
+    Question(
+        "ABD_PREGNANCY_STATUS",
+        "Is pregnancy possible?",
+        "SINGLE",
+        "REGIONAL",
+        when=Criteria(regions=("ABDOMEN", "PELVIS"), sex="F", min_age=12, max_age=55),
+        options=(
+            ("NO", "No"),
+            ("POSSIBLE", "Possible, not tested"),
+            ("CONFIRMED", "Confirmed"),
+            ("EXCLUDED", "Excluded by test"),
+        ),
+        order=37,
+    ),
+    Question(
+        "ABD_GESTATION_WEEKS",
+        "Gestational age.",
+        "NUMBER",
+        "REGIONAL",
+        when=Criteria(answer_equals=(("ABD_PREGNANCY_STATUS", "CONFIRMED"),)),
+        unit="weeks",
+        minimum=0,
+        maximum=45,
+        order=38,
+    ),
+    Question(
+        "ABD_ALCOHOL_BINGE",
+        "Recent heavy alcohol intake?",
+        "BOOL",
+        "REGIONAL",
+        when=_ABDOMEN,
+        order=39,
+    ),
+    Question(
+        "BACK_RADIATION_BELOW_KNEE",
+        "Does the pain radiate below the knee?",
+        "BOOL",
+        "REGIONAL",
+        when=Criteria(regions=("BACK",), radiates=True),
+        order=40,
+    ),
+    Question(
+        "BACK_STRAIGHT_LEG_RAISE",
+        "Straight leg raise.",
+        "SINGLE",
+        "REGIONAL",
+        when=_BACK,
+        options=(
+            ("NOT_DONE", "Not performed"),
+            ("NEGATIVE", "Negative"),
+            ("POSITIVE", "Positive"),
+        ),
+        order=41,
+    ),
+    Question(
+        "BACK_MORNING_STIFFNESS",
+        "Duration of morning stiffness.",
+        "NUMBER",
+        "REGIONAL",
+        when=_BACK,
+        unit="minutes",
+        minimum=0,
+        maximum=600,
+        order=42,
+    ),
+    Question(
+        "BACK_PREVIOUS_SPINAL_DISEASE",
+        "Any known spinal disease or previous spinal surgery?",
+        "BOOL",
+        "REGIONAL",
+        when=_BACK,
+        order=43,
+    ),
+    Question(
+        "BACK_STEROID_OR_IMMUNOSUPPRESSION",
+        "Long-term corticosteroids or immunosuppression?",
+        "BOOL",
+        "REGIONAL",
+        when=_BACK,
+        order=44,
+    ),
+    Question(
+        "BACK_INJECTION_DRUG_USE",
+        "Injection drug use or recent bacteraemia?",
+        "BOOL",
+        "REGIONAL",
+        when=_BACK,
+        help_text="Asked because it changes the weight given to fever with spinal pain.",
+        order=45,
+    ),
+    Question(
+        "HEAD_THUNDERCLAP",
+        "Did the headache reach maximum intensity within one minute?",
+        "BOOL",
+        "REGIONAL",
+        when=_HEAD,
+        order=50,
+    ),
+    Question(
+        "HEAD_WORST_EVER",
+        "Is this the worst headache the patient has had?",
+        "BOOL",
+        "REGIONAL",
+        when=_HEAD,
+        order=51,
+    ),
+    Question(
+        "HEAD_NECK_STIFFNESS",
+        "Neck stiffness on examination?",
+        "BOOL",
+        "REGIONAL",
+        when=_HEAD,
+        order=52,
+    ),
+    Question(
+        "HEAD_PHOTOPHOBIA",
+        "Photophobia or phonophobia?",
+        "BOOL",
+        "REGIONAL",
+        when=_HEAD,
+        order=53,
+    ),
+    Question(
+        "HEAD_AURA",
+        "Any visual or sensory aura before the pain?",
+        "BOOL",
+        "REGIONAL",
+        when=_HEAD,
+        order=54,
+    ),
+    Question(
+        "HEAD_VALSALVA_WORSE",
+        "Worse on coughing, straining or lying flat?",
+        "BOOL",
+        "REGIONAL",
+        when=_HEAD,
+        order=55,
+    ),
+    Question(
+        "HEAD_ANALGESIC_DAYS_PER_MONTH",
+        "Days per month the patient takes analgesia for headache.",
+        "NUMBER",
+        "REGIONAL",
+        when=_HEAD,
+        unit="days",
+        minimum=0,
+        maximum=31,
+        order=56,
+    ),
+    Question(
+        "HEAD_JAW_CLAUDICATION",
+        "Jaw claudication or scalp tenderness?",
+        "BOOL",
+        "REGIONAL",
+        when=Criteria(regions=("HEAD", "NECK"), min_age=50),
+        order=57,
+    ),
+    Question(
+        "LIMB_UNILATERAL_SWELLING",
+        "Unilateral swelling of the limb?",
+        "BOOL",
+        "REGIONAL",
+        when=_LIMB,
+        order=60,
+    ),
+    Question(
+        "LIMB_COLOUR",
+        "Colour of the limb.",
+        "SINGLE",
+        "REGIONAL",
+        when=_LIMB,
+        options=(
+            ("NORMAL", "Normal"),
+            ("PALE", "Pale"),
+            ("CYANOTIC", "Cyanotic"),
+            ("ERYTHEMATOUS", "Red and warm"),
+        ),
+        order=61,
+    ),
+    Question(
+        "LIMB_DISTAL_PULSE",
+        "Distal pulse.",
+        "SINGLE",
+        "REGIONAL",
+        when=_LIMB,
+        options=(
+            ("NOT_ASSESSED", "Not assessed"),
+            ("PRESENT", "Present"),
+            ("REDUCED", "Reduced"),
+            ("ABSENT", "Absent"),
+        ),
+        order=62,
+    ),
+    Question(
+        "LIMB_JOINT_HOT_SWOLLEN",
+        "Is a joint hot, swollen and restricted?",
+        "BOOL",
+        "REGIONAL",
+        when=_LIMB,
+        order=63,
+    ),
+    Question(
+        "LIMB_CLAUDICATION_DISTANCE",
+        "Walking distance before the pain starts.",
+        "NUMBER",
+        "REGIONAL",
+        when=Criteria(regions=("LOWER_LIMB",), factors=("WALKING",)),
+        unit="metres",
+        minimum=0,
+        maximum=5000,
+        order=64,
+    ),
+    Question(
+        "NEURO_DISTRIBUTION",
+        "Distribution of the sensory symptoms.",
+        "SINGLE",
+        "NEUROPATHIC",
+        when=_NEUROPATHIC_PICTURE,
+        options=(
+            ("DERMATOMAL", "Follows a single dermatome"),
+            ("SINGLE_NERVE", "Territory of one nerve"),
+            ("STOCKING_GLOVE", "Symmetrical, distal, stocking or glove"),
+            ("PATCHY", "Patchy"),
+            ("UNCLEAR", "Not clearly defined"),
+        ),
+        order=70,
+    ),
+    Question(
+        "NEURO_ALLODYNIA",
+        "Does light touch that should not hurt provoke pain?",
+        "BOOL",
+        "NEUROPATHIC",
+        when=_NEUROPATHIC_PICTURE,
+        order=71,
+    ),
+    Question(
+        "NEURO_MOTOR_DEFICIT",
+        "Objective motor weakness in the painful territory?",
+        "BOOL",
+        "NEUROPATHIC",
+        when=_NEUROPATHIC_PICTURE,
+        order=72,
+    ),
+    Question(
+        "NEURO_VESICULAR_RASH",
+        "Vesicular rash in the same territory?",
+        "BOOL",
+        "NEUROPATHIC",
+        when=_NEUROPATHIC_PICTURE,
+        order=73,
+    ),
+    Question(
+        "NEURO_DIABETES_YEARS",
+        "Years since the diabetes diagnosis.",
+        "NUMBER",
+        "NEUROPATHIC",
+        when=Criteria(conditions=("DIABETES_T1", "DIABETES_T2")),
+        unit="years",
+        minimum=0,
+        maximum=80,
+        order=74,
+    ),
+    Question(
+        "CANCER_KNOWN_METASTASES",
+        "Are bone or visceral metastases known?",
+        "BOOL",
+        "ONCOLOGICAL",
+        when=Criteria(conditions=("CANCER_ACTIVE", "CANCER_HISTORY", "CANCER_TREATMENT")),
+        order=80,
+    ),
+    Question(
+        "CANCER_BREAKTHROUGH",
+        "Is this a breakthrough episode on a stable analgesic regimen?",
+        "BOOL",
+        "ONCOLOGICAL",
+        when=Criteria(conditions=("CANCER_ACTIVE", "CANCER_TREATMENT")),
+        order=81,
+    ),
+    Question(
+        "CANCER_NEW_SITE",
+        "Is the pain at a new site compared with previous episodes?",
+        "BOOL",
+        "ONCOLOGICAL",
+        when=Criteria(conditions=("CANCER_ACTIVE", "CANCER_HISTORY")),
+        order=82,
+    ),
+    Question(
+        "POSTOP_DAYS",
+        "Days since the operation.",
+        "NUMBER",
+        "POSTOPERATIVE",
+        when=Criteria(answer_equals=(("SURGERY_LAST_30_DAYS", True),)),
+        unit="days",
+        minimum=0,
+        maximum=30,
+        order=90,
+    ),
+    Question(
+        "POSTOP_PAIN_AT_WOUND",
+        "Is the pain at the operative site?",
+        "BOOL",
+        "POSTOPERATIVE",
+        when=Criteria(answer_equals=(("SURGERY_LAST_30_DAYS", True),)),
+        order=91,
+    ),
+    Question(
+        "POSTOP_WOUND_APPEARANCE",
+        "Appearance of the wound.",
+        "SINGLE",
+        "POSTOPERATIVE",
+        when=Criteria(answer_equals=(("SURGERY_LAST_30_DAYS", True),)),
+        options=(
+            ("CLEAN", "Clean and dry"),
+            ("ERYTHEMA", "Surrounding erythema"),
+            ("DISCHARGE", "Discharge"),
+            ("DEHISCENCE", "Dehiscence"),
+            ("NOT_INSPECTED", "Not inspected"),
+        ),
+        order=92,
+    ),
+    Question(
+        "POSTOP_MOBILISING",
+        "Is the patient mobilising as expected?",
+        "BOOL",
+        "POSTOPERATIVE",
+        when=Criteria(answer_equals=(("SURGERY_LAST_30_DAYS", True),)),
+        order=93,
+    ),
+    Question(
+        "CHRONIC_DURATION_MONTHS",
+        "Total duration of the pain.",
+        "NUMBER",
+        "CHRONIC",
+        when=Criteria(min_duration_hours=2160),
+        unit="months",
+        minimum=3,
+        maximum=600,
+        order=100,
+    ),
+    Question(
+        "CHRONIC_WIDESPREAD",
+        "Is the pain widespread rather than confined to one site?",
+        "BOOL",
+        "CHRONIC",
+        when=Criteria(min_duration_hours=2160),
+        order=101,
+    ),
+    Question(
+        "CHRONIC_TREATMENTS_TRIED",
+        "Treatments already tried.",
+        "MULTI",
+        "CHRONIC",
+        when=Criteria(min_duration_hours=2160),
+        options=(
+            ("PHYSIOTHERAPY", "Physiotherapy"),
+            ("NSAID", "NSAID"),
+            ("PARACETAMOL", "Paracetamol"),
+            ("OPIOID", "Opioid"),
+            ("ANTIDEPRESSANT", "Antidepressant"),
+            ("ANTICONVULSANT", "Gabapentinoid or anticonvulsant"),
+            ("INJECTION", "Injection or block"),
+            ("SURGERY", "Surgery"),
+            ("NONE", "None"),
+        ),
+        order=102,
+    ),
+    Question(
+        "CHRONIC_MOOD_IMPACT",
+        "Impact on mood.",
+        "SINGLE",
+        "CHRONIC",
+        when=Criteria(min_duration_hours=2160),
+        options=SEVERITY_OPTIONS,
+        order=103,
+    ),
+    Question(
+        "ECG_RESULT",
+        "ECG.",
+        "SINGLE",
+        "INVESTIGATIONS",
+        when=Criteria(regions=("CHEST",)),
+        options=RESULT_OPTIONS,
+        order=110,
+    ),
+    Question(
+        "TROPONIN_RESULT",
+        "Troponin.",
+        "SINGLE",
+        "INVESTIGATIONS",
+        when=Criteria(regions=("CHEST",)),
+        options=(
+            ("NOT_DONE", "Not done"),
+            ("NORMAL", "Within reference range"),
+            ("RAISED", "Raised"),
+            ("PENDING", "Result pending"),
+        ),
+        order=111,
+    ),
+    Question(
+        "CHEST_XRAY_RESULT",
+        "Chest radiograph.",
+        "SINGLE",
+        "INVESTIGATIONS",
+        when=Criteria(regions=("CHEST",)),
+        options=RESULT_OPTIONS,
+        order=112,
+    ),
+    Question(
+        "ULTRASOUND_RESULT",
+        "Ultrasound.",
+        "SINGLE",
+        "INVESTIGATIONS",
+        when=Criteria(regions=("ABDOMEN", "PELVIS", "UPPER_LIMB", "LOWER_LIMB")),
+        options=RESULT_OPTIONS,
+        order=113,
+    ),
+    Question(
+        "CT_RESULT",
+        "CT.",
+        "SINGLE",
+        "INVESTIGATIONS",
+        when=Criteria(regions=("HEAD", "CHEST", "ABDOMEN", "PELVIS", "BACK")),
+        options=RESULT_OPTIONS,
+        order=114,
+    ),
+    Question(
+        "MRI_RESULT",
+        "MRI.",
+        "SINGLE",
+        "INVESTIGATIONS",
+        when=Criteria(regions=("HEAD", "BACK", "UPPER_LIMB", "LOWER_LIMB")),
+        options=RESULT_OPTIONS,
+        order=115,
+    ),
+    Question(
+        "PLAIN_XRAY_RESULT",
+        "Plain radiograph of the painful region.",
+        "SINGLE",
+        "INVESTIGATIONS",
+        when=Criteria(regions=("BACK", "UPPER_LIMB", "LOWER_LIMB")),
+        options=RESULT_OPTIONS,
+        order=116,
+    ),
+    Question(
+        "INFLAMMATORY_MARKERS",
+        "CRP or white cell count.",
+        "SINGLE",
+        "INVESTIGATIONS",
+        when=Criteria(symptoms=("FEVER", "CHILLS", "SWELLING")),
+        options=(
+            ("NOT_DONE", "Not done"),
+            ("NORMAL", "Normal"),
+            ("RAISED", "Raised"),
+            ("PENDING", "Result pending"),
+        ),
+        order=117,
+    ),
+    Question(
+        "URINE_DIPSTICK",
+        "Urine dipstick.",
+        "SINGLE",
+        "INVESTIGATIONS",
+        when=Criteria(regions=("ABDOMEN", "PELVIS", "BACK")),
+        options=(
+            ("NOT_DONE", "Not done"),
+            ("NORMAL", "Normal"),
+            ("BLOOD", "Blood"),
+            ("LEUCOCYTES_NITRITES", "Leucocytes or nitrites"),
+            ("PENDING", "Result pending"),
+        ),
+        order=118,
+    ),
+)
+
+BY_CODE = {question.code: question for question in QUESTIONS}
+
+
+def applicable(ctx: ClinicalContext) -> tuple[Question, ...]:
+    """The questions worth asking for this picture, in the order they should appear.
+
+    Questions gated on another question's answer only surface once that answer is in the
+    context, so the set grows as the clinician fills it in.
+    """
+    selected = [question for question in QUESTIONS if question.when.matches(ctx)]
+    selected.sort(key=lambda question: (_GROUP_ORDER[question.group], question.order))
+    return tuple(selected)
