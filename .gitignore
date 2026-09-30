@@ -23,3 +23,6 @@ storage/
 # Test output
 playwright-report/
 test-results/
+
+# TypeScript incremental build state
+*.tsbuildinfo
