@@ -6,12 +6,16 @@ The platform estimates pain intensity on a 0-10 scale, explains what moved that 
 lists the categories the recorded picture is compatible with, raises rule-based alerts, and
 produces a PDF report for the patient's file.
 
-No sensor, wearable or external device is involved anywhere. Every physiological value is
-entered by the clinician from a normal examination; the platform measures nothing itself.
+Most of what reaches an estimate is entered by the clinician from an ordinary examination.
+Two things are measured by the platform itself, and each is a separate channel with its own
+quality gate: an EEG and EMG recording from an attached amplifier, and a short camera and
+microphone clip from which the eyes, the face and the voice are measured. The platform
+also reaches outwards in one direction, to public dataset publishers, for research data
+about diseases. See [external dataset synchronisation](docs/external-datasets.md).
 
 Written for the ICAIMB 2026 PAIN SCORE challenge at University of Batna 2.
 
-## Two separations that shape the design
+## Three separations that shape the design
 
 **The patient's self-reported score is never a model input.** It is recorded in its own
 table and the structure the pipeline reads has no field for it, so it cannot reach inference
@@ -22,6 +26,13 @@ platform says so rather than assuming the model is right.
 **The ledger holds no clinical content.** A block carries a hash, a link to the block before
 it and a signature. There are no names, findings or measurements in it, so a patient cannot
 be derived from the ledger, whoever reads it.
+
+**A recording is measured and then deleted.** A clip of a patient's face and voice is the
+most identifying thing the platform touches, and once the thirty-odd numbers are out of it
+there is no clinical question the file answers that they do not. So it is discarded unless
+the clinician asks for it to be kept, and a kept clip is encrypted under its own data key.
+Its digest is held either way, which ties the measures to the clip they came from and
+identifies nobody.
 
 ## Architecture
 
@@ -42,6 +53,7 @@ backend/
   app/
     api/            HTTP layer, one module per resource
     ai/             quality gate, features, model registry, estimator, training
+    behaviour/      camera and microphone: eyes, face, voice, quality, voice model
     knowledge/      taxonomies, question engine, cause knowledge base, rule engine
     security/       authentication, encryption, hybrid PQC, keystore, audit
     blockchain/     canonical hashing, append-only ledger, verification
@@ -53,6 +65,7 @@ backend/
 frontend/
   src/
     api/            typed client and query hooks
+    anatomy/        3D body: parametric model, scene, outside/inside viewer
     components/     interface primitives, body map, pain scale
     charts/         trend and distribution charts
     forms/          patient form, assessment wizard steps
@@ -65,6 +78,10 @@ frontend/
 Python 3.12, Node 20 or later, and PostgreSQL for any shared environment. SQLite is the
 default when `DATABASE_URL` is unset and is enough for a local run. Docker Compose v2 for
 the container route.
+
+`ffmpeg` has to be on the path for the camera and microphone analysis: a browser writes its
+recording as Opus in a WebM container and nothing in the Python stack decodes that. The
+container image installs it; on Debian or Ubuntu, `apt install ffmpeg`.
 
 ## Install
 
@@ -120,6 +137,99 @@ cd backend
 
 `bootstrap` also loads the reference taxonomies. `python -m app.cli seed` reloads them on
 their own after an upgrade.
+
+## External datasets
+
+The platform polls WHO, CDC, Kaggle and PhysioNet for published disease datasets,
+catalogues what they hold, retrieves what the licence and access policy permit, and shows
+the result per disease. Restricted datasets are recorded with the steps a person would
+follow to obtain them; their files are never requested.
+
+```bash
+python -m app.cli sync --discover-only      # catalogue, download nothing
+python -m app.cli sync --source kaggle      # one publisher
+```
+
+The `worker` service runs this on a schedule. Full behaviour, configuration and the
+reasoning behind each gate: [docs/external-datasets.md](docs/external-datasets.md).
+
+## Burn assessment
+
+A burn module covering incident documentation, the burned surface area on both the
+Lund-Browder and Rule of Nines charts, depth categories, pain around wound care on the
+platform's existing scales, the wound-care log, follow-up and clinician review.
+
+Patient-reported, model-suggested and clinician-confirmed findings are stored in separate
+columns throughout, and only a clinician can move a suggestion into an assessment. The
+adult surface-area chart is refused for a patient under 15, and superficial erythema is
+excluded from the total and reported separately.
+
+Behaviour, the charts themselves and what is deliberately not built:
+[docs/burncare.md](docs/burncare.md).
+
+## EEG & EMG analysis
+
+Records EEG and surface EMG, with optional pulse, skin conductance and respiration
+channels beside them; measures per-channel signal quality; and extracts standard spectral
+and amplitude features, a pulse rate with its variability, and the skin conductance level
+with its spontaneous responses.
+
+A model is fitted on those features from the PainMonit database, 52 volunteers under
+calibrated contact heat, validated on people it never saw:
+
+```bash
+python -m app.cli train-signal-pain --dataset /path/to/painmonit
+```
+
+It reads skin conductance alone — the corpus samples at 250 Hz, under the rate these EMG
+channels need — and predicts that corpus's continuous visual analogue rating, 0 to 100,
+with 15.1 of error against 24.1 for predicting the mean, and AUC 0.94 telling a rest
+window from the hottest stimulus. It is not on a 0-10 scale and no conversion onto one is
+published, so the scale is stored and shown beside every number. The database's clinical
+half carries the only 0-10 ratings in it and no candidate beat the mean on them, so that
+model is registered inactive rather than served.
+
+A labelled simulator covers development and the degraded states — detached electrode,
+clipped amplifier, mains hum, dropped lead — and simulated data can never merge with
+hardware data.
+
+Hardware, wiring, electrical safety and how to test the workflow:
+[docs/eeg-emg.md](docs/eeg-emg.md).
+
+## Camera and microphone
+
+Records a short clip and measures what the eyes, the face and the voice are doing: the
+palpebral aperture and how far it has narrowed from this patient's own resting opening, the
+blink rate, the time spent with the eyes squeezed shut, the pupil diameter in millimetres
+and its unrest, the gaze, the brow, the mouth, head movement, and the pitch, jitter,
+shimmer, harmonics-to-noise, speech rate and non-speech vocalisation of the voice.
+
+The patient is asked to look at the camera with their eyes open, and that is a gate rather
+than a courtesy: the eye measures come only from frames where both eyes are found open, and
+below a floor of such frames the eye modality is refused rather than averaged over a
+handful. The millimetre scale comes from the iris, whose visible diameter is close to
+11.7 mm in every adult eye, so nothing has to be calibrated.
+
+This is the platform's behavioural observation channel, and it matters most for the patients
+who cannot be asked for a number — a newborn, someone with dementia, someone in critical
+care — because for exactly those patients the reference scale is observational and every one
+of those scales has a facial item and most have a vocal one.
+
+The measures are features of the clinical estimator. The acoustic ones additionally feed a
+separate model trained on real human recordings — 779 utterances from 194 speakers in the
+PainSpeech-4 corpus, 0.65 levels of speaker-grouped error against 1.00 for predicting the
+mean — which predicts that corpus's four-point scale and never a score out of ten, because
+no mapping between the two is published.
+
+The clip is deleted once the measures are out of it unless the clinician asks for it to be
+kept.
+
+```
+.venv/bin/python -m app.behaviour.training    # the voice model, on the acquired corpus
+```
+
+What is measured, how, what it is refused for, and what it does not mean:
+[docs/camera-and-microphone.md](docs/camera-and-microphone.md).
 
 ## Dataset and model
 
@@ -221,9 +331,23 @@ protected by a lockout counter.
 
 ## Limitations
 
-- The model is trained on synthetic data only. Its metrics describe agreement with synthetic
-  self-reported scores and say nothing about clinical performance. Nothing here has been
-  validated against patient data.
+- The clinical model is trained on synthetic data only. Its metrics describe agreement with
+  synthetic self-reported scores and say nothing about clinical performance. Nothing in it
+  has been validated against patient data. The voice model is the exception and is trained
+  on a real corpus, which brings its own limits — see below.
+- The camera and microphone measure behaviour, not pain. Every figure they produce also
+  moves with fear, fatigue, room light, sedation and how far the patient sat from the lens.
+  The facial measurement is geometry over a detected face box, not a trained expression
+  model, so it reads orbital tightening and brow lowering and not the levator contraction
+  that completes the Prkachin and Solomon score. It has been validated against rendered
+  faces with known geometry, which tests the arithmetic and not the detection — the
+  detection is the library's, at its published rate, on real faces this platform has not
+  evaluated.
+- The voice model predicts the four-level scale of the corpus it was trained on and not a
+  0-10 score; no mapping between the two is published. That corpus is elicited pain in
+  healthy volunteers speaking Arabic, and it publishes coefficients rather than audio, so
+  the correspondence between what it was trained on and what is measured at the bedside is
+  an inference from its column naming rather than something it states.
 - The reference is the patient's self-reported score, which is itself subjective and varies
   with context. Agreement with it is not the same as measuring pain.
 - The reported interval is the 10th to 90th model quantile. The coverage it achieved on

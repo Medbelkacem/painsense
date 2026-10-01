@@ -1,117 +1,193 @@
-import type { TokenResponse } from './types'
+// The one place that talks to the backend.
+//
+// The access token is held in memory rather than in localStorage: a token in
+// localStorage is readable by any script that gets injected into the page, and the
+// refresh cookie the API sets is httpOnly precisely so the session can be restored
+// without keeping a bearer token where script can reach it. A full page reload calls
+// `refresh` and gets a new access token from that cookie.
+
+import type { TokenResponse } from './types';
+
+const BASE = import.meta.env.VITE_API_BASE_URL ?? '';
+
+let accessToken: string | null = null;
+let csrfToken: string | null = null;
 
 export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-    readonly detail?: unknown,
-  ) {
-    super(message)
-    this.name = 'ApiError'
+  readonly status: number;
+  readonly requestId: string | null;
+
+  constructor(status: number, message: string, requestId: string | null) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.requestId = requestId;
   }
+}
+
+export function setSession(token: TokenResponse | null): void {
+  accessToken = token?.access_token ?? null;
+  csrfToken = token?.csrf_token ?? null;
+}
+
+export function hasSession(): boolean {
+  return accessToken !== null;
 }
 
 /**
- * The access token is held in memory only.
- *
- * Nothing about a signed-in session survives in localStorage, so a script that manages to
- * run on the page finds no token to steal and a closed tab leaves none behind. The session
- * is re-established on load from the HttpOnly refresh cookie instead.
+ * The API sets the CSRF token in a readable cookie alongside the httpOnly refresh
+ * cookie — the double-submit pattern. After a page reload the in-memory copy is gone,
+ * so the cookie is the only way to present the header `/api/auth/refresh` requires.
  */
-let accessToken: string | null = null
-
-export const setAccessToken = (token: string | null) => {
-  accessToken = token
-}
-export const getAccessToken = () => accessToken
-
-function csrfToken(): string {
-  const match = document.cookie.match(/(?:^|;\s*)painscore_csrf=([^;]*)/)
-  return match ? decodeURIComponent(match[1]) : ''
+function csrfFromCookie(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)painscore_csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
-async function parse(response: Response) {
-  const type = response.headers.get('content-type') ?? ''
-  if (type.includes('application/json')) return response.json()
-  if (type.includes('application/pdf')) return response.blob()
-  return response.text()
-}
-
-function messageFrom(status: number, body: unknown): string {
-  const detail = (body as { detail?: unknown } | null)?.detail
-  if (typeof detail === 'string') return detail
-  if (Array.isArray(detail)) {
-    return detail
-      .map((item: { loc?: unknown[]; msg?: string }) => {
-        const field = Array.isArray(item.loc) ? item.loc.slice(1).join('.') : ''
-        return field ? `${field}: ${item.msg}` : (item.msg ?? '')
-      })
-      .filter(Boolean)
-      .join('. ')
-  }
-  return status === 401 ? 'Your session has ended. Sign in again.' : `Request failed (${status})`
-}
-
-interface RequestOptions extends Omit<RequestInit, 'body'> {
-  body?: unknown
-  /** Set for the endpoints that act on the refresh cookie. */
-  csrf?: boolean
-}
-
-let refreshing: Promise<boolean> | null = null
-
-async function refreshSession(): Promise<boolean> {
-  refreshing ??= (async () => {
-    try {
-      const response = await fetch('/api/auth/refresh', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'X-CSRF-Token': csrfToken() },
-      })
-      if (!response.ok) return false
-      const body = (await response.json()) as TokenResponse
-      setAccessToken(body.access_token)
-      return true
-    } catch {
-      return false
-    } finally {
-      refreshing = null
+async function readError(response: Response): Promise<ApiError> {
+  let message = response.statusText || 'Request failed';
+  let requestId: string | null = response.headers.get('X-Request-ID');
+  try {
+    const body = await response.json();
+    // The API wraps failures as {error: {code, message, request_id}, detail}.
+    message = body?.error?.message ?? body?.detail ?? message;
+    requestId = body?.error?.request_id ?? requestId;
+    if (Array.isArray(message)) {
+      message = message.map((item) => item?.msg ?? String(item)).join('; ');
     }
-  })()
-  return refreshing
+  } catch {
+    // A non-JSON body (a proxy error page, say) leaves the status text in place.
+  }
+  return new ApiError(response.status, String(message), requestId);
 }
 
-async function send(path: string, options: RequestOptions, retry: boolean): Promise<unknown> {
-  const headers = new Headers(options.headers)
-  const isFormData = options.body instanceof FormData
-  if (options.body !== undefined && !isFormData) headers.set('Content-Type', 'application/json')
-  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
-  if (options.csrf) headers.set('X-CSRF-Token', csrfToken())
+interface RequestOptions {
+  method?: string;
+  body?: unknown;
+  signal?: AbortSignal;
+  /** Internal: stops a refresh loop when the refresh call itself returns 401. */
+  retryOnUnauthorised?: boolean;
+}
 
-  const response = await fetch(path, {
-    ...options,
+/**
+ * A `FormData` body is passed through untouched and its content type is left unset.
+ * Setting `multipart/form-data` by hand omits the boundary the browser generates, and the
+ * server then cannot find the parts — so the one correct move is to say nothing.
+ */
+function isMultipart(body: unknown): body is FormData {
+  return typeof FormData !== 'undefined' && body instanceof FormData;
+}
+
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { method = 'GET', body, signal, retryOnUnauthorised = true } = options;
+  const headers: Record<string, string> = {};
+  const multipart = isMultipart(body);
+  if (body !== undefined && !multipart) headers['Content-Type'] = 'application/json';
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (method !== 'GET') {
+    const csrf = csrfToken ?? csrfFromCookie();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+
+  const response = await fetch(`${BASE}${path}`, {
+    method,
     headers,
     credentials: 'include',
-    body: isFormData ? (options.body as FormData) : JSON.stringify(options.body),
-  })
+    body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
+    signal,
+  });
 
-  if (response.status === 401 && retry && path !== '/api/auth/login') {
-    if (await refreshSession()) return send(path, options, false)
+  if (response.status === 401 && retryOnUnauthorised && path !== '/api/auth/refresh') {
+    const renewed = await refresh();
+    if (renewed) return request<T>(path, { ...options, retryOnUnauthorised: false });
   }
-  if (response.status === 204) return null
-
-  const body = await parse(response)
-  if (!response.ok) throw new ApiError(response.status, messageFrom(response.status, body), body)
-  return body
+  if (!response.ok) throw await readError(response);
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }
 
-export const api = {
-  get: <T>(path: string) => send(path, { method: 'GET' }, true) as Promise<T>,
-  post: <T>(path: string, body?: unknown, csrf = false) =>
-    send(path, { method: 'POST', body, csrf }, true) as Promise<T>,
-  patch: <T>(path: string, body: unknown) =>
-    send(path, { method: 'PATCH', body }, true) as Promise<T>,
-  upload: <T>(path: string, form: FormData) =>
-    send(path, { method: 'POST', body: form }, true) as Promise<T>,
-  restore: refreshSession,
+/**
+ * Fetch a binary body and hand it to the browser as a download.
+ *
+ * Separate from `request` because that one parses JSON, and a report is a PDF. The object
+ * URL is revoked on the next tick: revoking it synchronously races the download in Safari,
+ * and never revoking it holds the whole file in memory for the life of the tab.
+ */
+export async function download(
+  path: string,
+  fallbackName: string,
+  options: { method?: string; body?: unknown } = {},
+): Promise<void> {
+  const { method = 'POST', body } = options;
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  const csrf = csrfToken ?? csrfFromCookie();
+  if (csrf) headers['X-CSRF-Token'] = csrf;
+
+  let response = await fetch(`${BASE}${path}`, {
+    method,
+    headers,
+    credentials: 'include',
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (response.status === 401) {
+    const renewed = await refresh();
+    if (renewed) {
+      headers.Authorization = `Bearer ${renewed.access_token}`;
+      headers['X-CSRF-Token'] = renewed.csrf_token;
+      response = await fetch(`${BASE}${path}`, {
+        method,
+        headers,
+        credentials: 'include',
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    }
+  }
+  if (!response.ok) throw await readError(response);
+
+  // The server names the file; the caller's name is the fallback.
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = match ? match[1] : fallbackName;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+export async function login(email: string, password: string): Promise<TokenResponse> {
+  const token = await request<TokenResponse>('/api/auth/login', {
+    method: 'POST',
+    body: { email, password },
+    retryOnUnauthorised: false,
+  });
+  setSession(token);
+  return token;
+}
+
+/** Exchange the httpOnly refresh cookie for a new access token. */
+export async function refresh(): Promise<TokenResponse | null> {
+  try {
+    const token = await request<TokenResponse>('/api/auth/refresh', {
+      method: 'POST',
+      retryOnUnauthorised: false,
+    });
+    setSession(token);
+    return token;
+  } catch {
+    setSession(null);
+    return null;
+  }
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await request<void>('/api/auth/logout', { method: 'POST', retryOnUnauthorised: false });
+  } finally {
+    setSession(null);
+  }
 }

@@ -1,9 +1,11 @@
+import dataclasses
+import inspect
 import math
 from dataclasses import replace
 
-from app.ai import confounders, estimator, features, model, quality, uncertainty
-from app.database.models import DataQuality
-from app.knowledge.context import ClinicalContext
+from backend.ai import confounders, estimator, features, inputs, model, quality, uncertainty
+from database.models import DataQuality
+from knowledge.context import ClinicalContext
 
 
 def complete_case(**overrides) -> ClinicalContext:
@@ -20,12 +22,19 @@ def complete_case(**overrides) -> ClinicalContext:
         "course": "WORSENING",
         "duration_hours": 4.0,
         "radiates": True,
+        "functional_impact": {
+            "mobility": 3,
+            "sleep": 3,
+            "work": 4,
+            "daily_activity": 3,
+            "self_care": 2,
+        },
+        "medications": (),
         "vitals": {"hr": 96.0, "resp_rate": 18.0, "sbp": 148.0, "dbp": 88.0, "spo2": 97.0},
         "answers": {
             "FIRST_EPISODE": True,
-            "FUNCTIONAL_IMPACT": "SEVERE",
-            "SLEEP_DISTURBED": True,
-            "ANALGESIA_TAKEN": False,
+            "REGULAR_MEDICATION": False,
+            "CHEST_WALL_TENDER": False,
             "CHEST_EXERTIONAL": True,
         },
     }
@@ -34,11 +43,6 @@ def complete_case(**overrides) -> ClinicalContext:
 
 
 def test_a_model_fitted_on_another_feature_set_is_refused(db, monkeypatch):
-    """A stale artifact must not be asked to predict from a vector it never saw.
-
-    Lining the columns up by position would produce a number, which is the failure mode
-    worth protecting against: it would look exactly like a real estimate.
-    """
     bundle, row = model.active(db)
     stale = replace(bundle, feature_names=bundle.feature_names[:-1])
     monkeypatch.setattr(model, "active", lambda _db: (stale, row))
@@ -46,13 +50,24 @@ def test_a_model_fitted_on_another_feature_set_is_refused(db, monkeypatch):
     result = estimator.estimate(db, complete_case())
     assert result.refused
     assert "different set of features" in result.refusal_reason
-    # The rules still run on a record the model cannot be used for.
+
     assert result.priority.score is not None
 
 
 def test_no_feature_reads_a_self_reported_score():
-    assert not [name for name in features.NAMES if "nrs" in name or "self" in name]
-    assert not hasattr(ClinicalContext(), "nrs")
+    # The argument is structural rather than textual. Features are a function of a
+    # ClinicalContext and nothing else; a ClinicalContext has no field that could hold a
+    # score; and inputs is the only bridge from a stored assessment to a context, so if it
+    # never touches the reference, nothing downstream can.
+    held = {field.name for field in dataclasses.fields(ClinicalContext)}
+    assert not [name for name in held if "nrs" in name or "score" in name]
+
+    extractors = inspect.signature(features.vector).parameters
+    assert [p.annotation for p in extractors.values()] == [ClinicalContext]
+
+    bridge = inspect.getsource(inputs)
+    assert "self_report" not in bridge
+    assert "nrs" not in bridge
 
 
 def test_a_missing_measurement_stays_missing():
@@ -130,7 +145,7 @@ def test_the_estimate_is_withheld_when_the_record_is_too_thin(db):
     result = estimator.estimate(db, ClinicalContext(pain_locations=frozenset({"KNEE"})))
     assert result.refused
     assert result.interval is None
-    assert "not sufficient" in result.refusal_reason
+    assert "cannot be responsibly generated" in result.refusal_reason
 
 
 def test_red_flags_still_run_when_the_estimate_is_withheld(db):

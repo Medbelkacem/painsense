@@ -1,196 +1,282 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/sora';
 
-/* The class is set on <html> by the theme provider; `system` resolves to one of the two. */
+/* The toggle in the top bar writes a class on <html>; the OS preference is only the
+   starting point, so the variant has to follow the class rather than the media query. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/*
- * PainSense AI palette.
- *
- * Clinical Blue carries the brand and every primary action. Signal Teal is the waveform
- * and the "AI" half of the wordmark, darkened to #0E8F9B whenever it has to be read as
- * text. Neural Violet is reserved for the model's own output — the estimate, its interval
- * and its feature contributions — so that what the model produced is never confused with
- * what a clinician recorded or a rule decided.
- */
+/* ---------------------------------------------------------------------------
+   Brand constants. These five are fixed by the identity sheet and never change
+   between themes — everything else below is derived from them per theme.
+   --------------------------------------------------------------------------- */
 :root {
-  --brand-blue: #0b3c7d;
-  --brand-blue-deep: #082c5c;
+  --brand-clinical: #0b3c7d;
   --brand-teal: #14b8c4;
-  --brand-teal-text: #0e8f9b;
+  --brand-teal-ink: #0e8f9b;
   --brand-violet: #7c5cff;
   --brand-ink: #0b1b33;
 
-  --canvas: #f2f6fb;
-  --surface: #ffffff;
-  --raised: #f8fafd;
-  --line: #e1e9f3;
-  --line-strong: #c6d5e6;
+  /* Pain bands. Used by the NRS scale, the distribution chart and every severity
+     chip, so the whole product agrees on what "moderate" looks like. */
+  --band-none: #94a3b8;
+  --band-mild: #14b8c4;
+  --band-moderate: #c2690b;
+  --band-severe: #dc2626;
 
-  --ink: #0b1b33;
-  --body: #33475b;
-  --muted: #62778f;
-  --faint: #8fa3b8;
+  --ok: #0f9d6e;
+  --warn: #c2690b;
+  --danger: #dc2626;
+
+  --canvas: #f2f5fa;
+  --surface: #ffffff;
+  --surface-sunken: #f7f9fc;
+  --surface-raised: #ffffff;
+  --hairline: #e3e8f2;
+  --hairline-strong: #ccd6e6;
+
+  --text: #0b1b33;
+  --text-soft: #475a78;
+  --text-mute: #74849f;
+  --text-faint: #97a4ba;
 
   --accent: #0b3c7d;
-  --accent-strong: #082c5c;
-  --accent-soft: #e8f0fa;
-  --accent-contrast: #ffffff;
+  --accent-ink: #0b3c7d;
+  --accent-wash: #e8eefa;
+  --accent-edge: #c3d5ef;
 
-  --teal: #0e8f9b;
-  --teal-soft: #e4f6f8;
-  --violet: #6b4bf0;
-  --violet-soft: #efecff;
+  --shadow-card: 0 1px 2px rgb(11 27 51 / 0.04), 0 1px 1px rgb(11 27 51 / 0.03);
+  --shadow-pop: 0 16px 40px -12px rgb(11 27 51 / 0.22), 0 2px 8px rgb(11 27 51 / 0.06);
+  --shadow-lift: 0 10px 28px -14px rgb(11 27 51 / 0.3);
 
-  --band-none: #0f766e;
-  --band-mild: #15803d;
-  --band-moderate: #b45309;
-  --band-severe: #c2410c;
-  --band-extreme: #b91c1c;
-
-  --alert: #c02626;
-  --alert-soft: #fdeeee;
-  --caution: #b45309;
-  --caution-soft: #fdf5e9;
-  --positive: #15803d;
-  --positive-soft: #ecf7ef;
-
-  /* The mark keeps Clinical Blue on light ground and reverses out on dark. */
-  --mark-body: #0b3c7d;
-  --mark-word: #0b3c7d;
-
-  --shadow-card: 0 1px 2px rgb(11 27 51 / 0.05);
-  --shadow-raised: 0 8px 24px -12px rgb(11 27 51 / 0.25);
+  color-scheme: light;
 }
 
 .dark {
-  --canvas: #060b16;
-  --surface: #0d1526;
-  --raised: #121c31;
-  --line: #1d2a42;
-  --line-strong: #2b3b58;
+  --canvas: #060b14;
+  --surface: #0d1829;
+  --surface-sunken: #0a1322;
+  --surface-raised: #122039;
+  --hairline: #1c2b45;
+  --hairline-strong: #2a3d5c;
 
-  --ink: #e9eff8;
-  --body: #b8c6da;
-  --muted: #8296b0;
-  --faint: #5f7391;
+  --text: #e8eefa;
+  --text-soft: #a9bad4;
+  --text-mute: #8295b2;
+  --text-faint: #65789a;
 
-  --accent: #3b82f6;
-  --accent-strong: #60a5fa;
-  --accent-soft: #14264a;
-  --accent-contrast: #061024;
+  --accent: #4f8fe0;
+  --accent-ink: #9cc2f0;
+  --accent-wash: #13294a;
+  --accent-edge: #24436f;
 
-  --teal: #2dd4bf;
-  --teal-soft: #0d2b33;
-  --violet: #a78bfa;
-  --violet-soft: #221a44;
-
-  --band-none: #2dd4bf;
-  --band-mild: #4ade80;
-  --band-moderate: #fbbf24;
-  --band-severe: #fb923c;
-  --band-extreme: #f87171;
-
-  --alert: #f87171;
-  --alert-soft: #2a1216;
-  --caution: #fbbf24;
-  --caution-soft: #2a2010;
-  --positive: #4ade80;
-  --positive-soft: #10281a;
-
-  --mark-body: #ffffff;
-  --mark-word: #f1f6fd;
+  --band-none: #64748b;
+  --band-moderate: #e08a2b;
+  --band-severe: #ef4444;
+  --ok: #34d399;
+  --warn: #e08a2b;
+  --danger: #ef4444;
 
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-raised: 0 12px 32px -16px rgb(0 0 0 / 0.7);
+  --shadow-pop: 0 20px 48px -16px rgb(0 0 0 / 0.7), 0 2px 8px rgb(0 0 0 / 0.4);
+  --shadow-lift: 0 12px 32px -16px rgb(0 0 0 / 0.6);
+
+  color-scheme: dark;
 }
 
+/* `inline` keeps the var indirection in the generated utility, which is what lets a
+   single `bg-surface` resolve differently under .dark. */
 @theme inline {
-  --font-sans: 'Sora Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Sora', ui-sans-serif, system-ui, sans-serif;
 
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
-  --color-raised: var(--raised);
-  --color-line: var(--line);
-  --color-line-strong: var(--line-strong);
+  --color-sunken: var(--surface-sunken);
+  --color-raised: var(--surface-raised);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
 
-  --color-ink: var(--ink);
-  --color-body: var(--body);
-  --color-muted: var(--muted);
-  --color-faint: var(--faint);
+  --color-ink: var(--text);
+  --color-soft: var(--text-soft);
+  --color-mute: var(--text-mute);
+  --color-faint: var(--text-faint);
 
   --color-accent: var(--accent);
-  --color-accent-strong: var(--accent-strong);
-  --color-accent-soft: var(--accent-soft);
-  --color-accent-contrast: var(--accent-contrast);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-wash: var(--accent-wash);
+  --color-accent-edge: var(--accent-edge);
 
-  --color-teal: var(--teal);
-  --color-teal-soft: var(--teal-soft);
-  --color-violet: var(--violet);
-  --color-violet-soft: var(--violet-soft);
-
-  --color-mark-body: var(--mark-body);
-  --color-mark-word: var(--mark-word);
-
-  --color-brand-blue: var(--brand-blue);
-  --color-brand-blue-deep: var(--brand-blue-deep);
-  --color-brand-teal: var(--brand-teal);
-  --color-brand-ink: var(--brand-ink);
+  --color-clinical: var(--brand-clinical);
+  --color-teal: var(--brand-teal);
+  --color-teal-ink: var(--brand-teal-ink);
+  --color-violet: var(--brand-violet);
 
   --color-band-none: var(--band-none);
   --color-band-mild: var(--band-mild);
   --color-band-moderate: var(--band-moderate);
   --color-band-severe: var(--band-severe);
-  --color-band-extreme: var(--band-extreme);
 
-  --color-alert: var(--alert);
-  --color-alert-soft: var(--alert-soft);
-  --color-caution: var(--caution);
-  --color-caution-soft: var(--caution-soft);
-  --color-positive: var(--positive);
-  --color-positive-soft: var(--positive-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-lift: var(--shadow-lift);
+
+  --radius-card: 14px;
+  --radius-control: 10px;
+}
+
+/* ---------------------------------------------------------------------------
+   Palette aliases for the acquisition screens.
+
+   The signal, atlas and external-dataset pages were written against Tailwind's own
+   slate ramp on a permanently dark ground. Re-pointing that ramp at the theme tokens —
+   inverted, since slate-900 was a surface and slate-200 was text — lets those pages
+   follow the workspace theme without rewriting several thousand lines of markup. The
+   accent ramps are aliased at the shades they actually use as chip text, which is the
+   only place a literal Tailwind colour fails on a light ground.
+   --------------------------------------------------------------------------- */
+@theme inline {
+  --color-slate-950: var(--canvas);
+  --color-slate-900: var(--surface);
+  --color-slate-800: var(--hairline);
+  --color-slate-700: var(--hairline-strong);
+  --color-slate-600: var(--text-faint);
+  --color-slate-500: var(--text-faint);
+  --color-slate-400: var(--text-mute);
+  --color-slate-300: var(--text-soft);
+  --color-slate-200: var(--text);
+  --color-slate-100: var(--text);
+
+  --color-emerald-200: var(--ok);
+  --color-emerald-300: var(--ok);
+  --color-emerald-400: var(--ok);
+  --color-amber-200: var(--warn);
+  --color-amber-300: var(--warn);
+  --color-amber-400: var(--warn);
+  --color-red-200: var(--danger);
+  --color-red-300: var(--danger);
+  --color-red-400: var(--danger);
+  --color-sky-300: var(--accent-ink);
+  --color-blue-200: var(--accent-ink);
+  --color-blue-300: var(--accent-ink);
+  --color-blue-400: var(--accent-ink);
+  --color-violet-300: var(--brand-violet);
+  --color-violet-400: var(--brand-violet);
 }
 
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
-    color-scheme: light;
-  }
-
-  html.dark {
-    color-scheme: dark;
   }
 
   body {
     margin: 0;
     background: var(--canvas);
-    color: var(--ink);
-    font-family: 'Sora Variable', ui-sans-serif, system-ui, sans-serif;
-    font-size: 0.9375rem;
-    font-weight: 400;
-    line-height: 1.55;
+    color: var(--text);
+    font-family: 'Sora', ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
-  h1,
-  h2,
-  h3 {
+  /* Figures line up in tables and stat tiles without reaching for a mono face. */
+  h1, h2, h3, .tnum, table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
     font-weight: 600;
-    letter-spacing: -0.015em;
+    margin: 0;
   }
 
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+    border-radius: 4px;
   }
 
-  .tabular {
-    font-variant-numeric: tabular-nums;
+  ::selection {
+    background: var(--brand-teal);
+    color: #06202a;
   }
 
-  /* The wordmark sets its own tracking, which the brand sheet puts at -3.5%. */
-  .wordmark {
+  /* A long patient table should not drag a chrome scrollbar into a calm layout. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--hairline-strong) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--hairline-strong);
+    border: 3px solid transparent;
+    border-radius: 99px;
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* Section eyebrow — the "CLINICAL" / "INSIGHTS" labels in the sidebar and the
+     "MISSING" / "COLORS" labels on cards. */
+  .eyebrow {
+    font-size: 10px;
     font-weight: 600;
-    letter-spacing: -0.035em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .hairline-grid {
+    background-image:
+      linear-gradient(var(--hairline) 1px, transparent 1px),
+      linear-gradient(90deg, var(--hairline) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes ps-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@keyframes ps-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes ps-draw {
+  from {
+    stroke-dashoffset: var(--draw-length);
+  }
+}
+
+@keyframes ps-pulse {
+  50% {
+    opacity: 0.35;
   }
 }

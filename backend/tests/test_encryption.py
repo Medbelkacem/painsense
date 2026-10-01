@@ -1,7 +1,7 @@
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from app.security import encryption
+from security import encryption
 
 IDENTITY = {"code": "PS-2026-000421", "given_name": "Amel", "family_name": "Cherif"}
 

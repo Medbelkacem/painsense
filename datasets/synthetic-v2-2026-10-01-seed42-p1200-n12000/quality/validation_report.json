@@ -1,0 +1,89 @@
+{
+  "rows": 12000,
+  "patients": 1200,
+  "split_rows": {
+    "train": 8252,
+    "validation": 1917,
+    "test": 1831
+  },
+  "split_patients": {
+    "train": 840,
+    "validation": 180,
+    "test": 180
+  },
+  "patient_overlap_between_splits": 0,
+  "nrs_histogram": {
+    "0": 1535,
+    "1": 1021,
+    "2": 1040,
+    "3": 844,
+    "4": 1179,
+    "5": 1041,
+    "6": 1245,
+    "7": 978,
+    "8": 1084,
+    "9": 852,
+    "10": 1181
+  },
+  "missingness_per_vital": {
+    "hr": 0.0858,
+    "resp_rate": 0.1893,
+    "sbp": 0.2988,
+    "dbp": 0.3124,
+    "spo2": 0.1703,
+    "temperature_c": 0.2073,
+    "glucose_mmol": 0.5571
+  },
+  "per_scenario_counts": {
+    "STANDARD": 10559,
+    "G_INCOMPLETE": 152,
+    "NO_PAIN": 150,
+    "E_MEDICATION_BLUNTING": 133,
+    "C_CHRONIC_SEVERE_STABLE": 126,
+    "A_HIGH_HR_LOW_PAIN": 124,
+    "I_FEVER_NO_PAIN": 122,
+    "K_SEDATED_HIGH_PAIN": 112,
+    "H_CONFLICTING": 111,
+    "D_EXERCISE_HIGH_HR": 110,
+    "F_MULTI_SITE": 107,
+    "B_SEVERE_PAIN_NORMAL_VITALS": 97,
+    "J_DISTRESS_NO_PAIN": 97
+  },
+  "per_archetype_mean_nrs": {
+    "OBSTETRIC_LABOUR": 8.32,
+    "CANCER_PAIN": 7.6,
+    "LIMB_TENDINOPATHY": 2.48,
+    "LIMB_OSTEOARTHRITIS": 5.25,
+    "NEONATAL_PROCEDURAL": 3.34,
+    "BACK_INFLAMMATORY": 4.44,
+    "HEAD_MIGRAINE": 5.6,
+    "HEAD_TENSION": 4.24,
+    "NEURO_POLYNEUROPATHY": 5.61,
+    "WIDESPREAD_CHRONIC": 4.4,
+    "ABDOMEN_BILIARY": 5.5,
+    "PAEDIATRIC_ABDOMINAL": 3.63,
+    "POSTOPERATIVE": 3.31,
+    "BACK_MECHANICAL": 3.04,
+    "CHEST_ISCHAEMIC": 5.23,
+    "BACK_RADICULAR": 5.52,
+    "ABDOMEN_APPENDICULAR": 6.31,
+    "CHEST_PLEURAL": 4.81,
+    "ABDOMEN_RENAL_COLIC": 7.65,
+    "CHEST_WALL": 3.62,
+    "LIMB_INFLAMMATORY_JOINT": 5.18,
+    "ABDOMEN_FUNCTIONAL": 3.83
+  },
+  "quality_levels": {
+    "GOOD": 10806,
+    "ADEQUATE": 1049,
+    "LIMITED": 96,
+    "INSUFFICIENT": 49
+  },
+  "leakage_checks": {
+    "target_column": "nrs",
+    "target_in_feature_columns": false,
+    "feature_names_mentioning_target": [
+      "impact_self_care"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+numpy>=1.26
+pandas>=2.2
+scipy>=1.14
+scikit-learn>=1.5
+xgboost>=2.1
+joblib>=1.4
+cryptography>=44.0
+kyber-py>=1.2
+dilithium-py>=1.4
+paho-mqtt>=2.1
+opencv-python>=4.10
+mediapipe>=0.10

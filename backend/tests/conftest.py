@@ -2,43 +2,45 @@ import base64
 import os
 import tempfile
 
-# Set before the app modules load: the engine, the keystore and the artifact directories are
-# all resolved at import time, and a developer's own .env must not decide where tests write.
 _scratch = tempfile.mkdtemp(prefix="painscore-tests-")
 os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///{_scratch}/test.db"
 os.environ["KEY_STORE_PATH"] = os.path.join(_scratch, "keystore")
 os.environ["MODEL_STORE_PATH"] = os.path.join(_scratch, "models")
 os.environ["DATASET_PATH"] = os.path.join(_scratch, "datasets")
 os.environ["DOCUMENT_STORE_PATH"] = os.path.join(_scratch, "documents")
+os.environ["EXTERNAL_DATASET_PATH"] = os.path.join(_scratch, "external")
+os.environ["EPIDEMIC_DATA_PATH"] = os.path.join(_scratch, "epidemic")
+os.environ["SIGNAL_STORE_PATH"] = os.path.join(_scratch, "signals")
+# The sync worker must never reach the network from a test run. Every test that
+# exercises it supplies its own connector or its own recorded response.
+os.environ["SYNC_ENABLED"] = "false"
+os.environ["KAGGLE_USERNAME"] = ""
+os.environ["KAGGLE_KEY"] = ""
 for _secret in ("MASTER_KEY", "JWT_SECRET", "JWT_REFRESH_SECRET"):
     os.environ[_secret] = base64.b64encode(os.urandom(32)).decode()
 
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy.orm import Session  # noqa: E402
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from app.ai import training  # noqa: E402
-from app.database.database import Base, engine  # noqa: E402
-from app.database.models import Role, User  # noqa: E402
-from app.database.seed import seed_reference_data  # noqa: E402
-from app.datasets import generate  # noqa: E402
-from app.dependencies import get_db, limiter  # noqa: E402
-from app.main import app  # noqa: E402
-from app.security import authentication as auth  # noqa: E402
+from backend.ai import training
+from database.session import Base, engine
+from database.models import Role, User
+from database.seed import seed_reference_data
+from dataset.synthetic import generate
+from backend.dependencies import get_db, limiter
+from backend.main import app
+from security import authentication as auth
 
 DOCTOR_EMAIL = "s.benali@chu-batna.dz"
 ADMIN_EMAIL = "a.mansouri@chu-batna.dz"
 PASSWORD = "Consultation-Batna-2026"
-TRAINING_ROWS = 600
+TRAINING_PATIENTS = 120
+TRAINING_ASSESSMENTS = 600
 
 
 @pytest.fixture(scope="session", autouse=True)
 def platform():
-    """One schema, one reference catalogue, one trained model for the whole run.
-
-    Everything here is committed. Per-test writes live in a transaction that is rolled
-    back, so tests never see each other's records but do share this fixed background.
-    """
     Base.metadata.create_all(engine)
     with Session(engine) as db:
         seed_reference_data(db)
@@ -55,13 +57,15 @@ def platform():
                     email=ADMIN_EMAIL,
                     password_hash=auth.hash_password(PASSWORD),
                     display_name="Dr A. Mansouri",
-                    role=Role.ADMIN,
+                    role=Role.CLINIC_ADMIN,
                 ),
             ]
         )
         db.commit()
 
-        path, metadata = generate.write(TRAINING_ROWS, seed=7)
+        path, metadata = generate.write(
+            TRAINING_ASSESSMENTS, seed=7, patients=TRAINING_PATIENTS
+        )
         generate.register(metadata, path)
         training.train(db, dataset_path=path, cv_folds=2)
     yield
@@ -69,12 +73,6 @@ def platform():
 
 @pytest.fixture
 def db():
-    """A session whose writes are discarded when the test ends.
-
-    The application commits as it goes, so the session joins the outer transaction through
-    a savepoint: a commit inside the code under test releases the savepoint, and the
-    rollback here still undoes it.
-    """
     connection = engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection, join_transaction_mode="create_savepoint")

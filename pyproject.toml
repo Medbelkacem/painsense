@@ -1,0 +1,16 @@
+[tool.ruff]
+line-length = 96
+
+[tool.ruff.lint]
+extend-select = ["E402"]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/migrations/env.py" = ["F401"]
+"backend/tests/conftest.py" = ["E402"]
+"backend/tests/test_ledger.py" = ["DTZ001"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests", "dataset/tests"]
+filterwarnings = [
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]

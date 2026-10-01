@@ -1,0 +1,56 @@
+{
+  "clinical_contexts": {
+    "unconscious_sedated": {
+      "A": 0.6,
+      "B": 0.3,
+      "C": 0.1
+    },
+    "conscious_er": {
+      "A": 0.2,
+      "B": 0.3,
+      "C": 0.5
+    },
+    "conscious_ward": {
+      "A": 0.3,
+      "B": 0.35,
+      "C": 0.35
+    }
+  },
+  "layer_mix": {
+    "base": 0.4,
+    "statistical": 0.3,
+    "ml": 0.3
+  },
+  "attenuation": {
+    "motion_threshold": 0.5,
+    "motion_factor": 0.3,
+    "autonomic_confound_factor": 0.35,
+    "eeg_quality_threshold": 0.35,
+    "eeg_failure_factor": 0.0,
+    "readable_quality": 0.35,
+    "expression_factor": 0.2,
+    "occlusion_factor": 0.25,
+    "lighting_threshold": 0.45,
+    "minimum_total_weight": 0.05
+  },
+  "confounder_rules": {
+    "heart_rate_rise": 11.0,
+    "gsr_rise": 1.6,
+    "respiration_rise": 5.0,
+    "motion_active": 0.33,
+    "emg_rise": 3.5,
+    "pain_face_intensity": 1.6
+  },
+  "score_scale": {
+    "agreement_span": 4.0
+  },
+  "confidence_mix": {
+    "quality": 0.4,
+    "remaining_weight": 0.3,
+    "agreement": 0.3
+  },
+  "contribution_bands": {
+    "high": 0.4,
+    "moderate": 0.18
+  }
+}

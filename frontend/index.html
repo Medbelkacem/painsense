@@ -2,14 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b3c7d" />
-    <meta
-      name="description"
-      content="PainSense AI: intelligent pain assessment and clinical decision support from findings entered by a clinician."
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0B3C7D" />
+    <meta name="description" content="PainSense AI — intelligent pain assessment for clinical teams." />
+    <!-- The theme is read before React mounts so a night-shift reload never flashes white. -->
+    <script>
+      (function () {
+        var stored = localStorage.getItem('painsense.theme');
+        var dark =
+          stored === 'dark' ||
+          ((stored === null || stored === 'system') &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
     />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>PainSense AI</title>
   </head>
   <body>

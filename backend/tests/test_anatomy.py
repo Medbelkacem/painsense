@@ -5,11 +5,11 @@ import uuid
 import numpy as np
 import pytest
 
-from app.ai import features, inputs
-from app.database.models import AssessmentAnatomicalSite, PainAssessment
-from app.knowledge import anatomy, locations
-from app.knowledge.context import ClinicalContext
-from tests.test_api import CHEST_CASE, make_assessment, make_patient
+from backend.ai import features, inputs
+from database.models import AssessmentAnatomicalSite, PainAssessment
+from knowledge import anatomy, locations
+from knowledge.context import ClinicalContext
+from backend.tests.test_api import CHEST_CASE, make_assessment, make_patient
 
 KNEE_CASE = {
     "anatomical_sites": [
@@ -17,9 +17,6 @@ KNEE_CASE = {
         {"structure_code": "TEN_KNEE_MENISCUS", "side": "LEFT", "intensity": 4},
     ]
 }
-
-
-# --- the ontology ------------------------------------------------------------------
 
 
 def test_every_structure_resolves_through_the_three_levels():
@@ -51,11 +48,6 @@ def test_the_tree_holds_every_structure_exactly_once():
 
 
 def test_a_surface_zone_exists_for_every_site_a_record_can_name():
-    """The fallback has to cover the taxonomy, or a site would have nowhere to be recorded.
-
-    The parent codes are containers for their children and the sided chest codes are
-    reached through the paired chest wall, so neither needs a zone of its own.
-    """
     zones = {zone.location for zone in anatomy.of_type(anatomy.REGION)}
     zones.update(
         sided
@@ -74,7 +66,7 @@ def test_a_surface_zone_exists_for_every_site_a_record_can_name():
 def test_a_structure_records_the_pain_location_it_projects_onto():
     assert anatomy.projected_locations("JOINT_KNEE", "LEFT") == (("KNEE", "LEFT"),)
     assert anatomy.projected_locations("ORG_LIVER", "RIGHT") == (("ABD_RUQ", "RIGHT"),)
-    # The taxonomy names the two flanks separately, so both sides reach their own code.
+
     assert anatomy.projected_locations("ORG_KIDNEY", "BILATERAL") == (
         ("ABD_LUQ", "LEFT"),
         ("ABD_RUQ", "RIGHT"),
@@ -94,12 +86,9 @@ def test_laterality_decides_which_sides_a_structure_accepts():
     assert not anatomy.BY_CODE["JOINT_KNEE"].accepts("MIDLINE")
     assert anatomy.BY_CODE["ORG_HEART"].accepts("MIDLINE")
     assert not anatomy.BY_CODE["ORG_HEART"].accepts("LEFT")
-    # The liver is unpaired and on the right; it is not recordable on the left.
+
     assert anatomy.BY_CODE["ORG_LIVER"].accepts("RIGHT")
     assert not anatomy.BY_CODE["ORG_LIVER"].accepts("LEFT")
-
-
-# --- the feature pipeline ----------------------------------------------------------
 
 
 def test_the_structure_type_reaches_the_feature_vector():
@@ -145,16 +134,8 @@ def test_both_sides_are_visible_to_the_model_however_the_site_was_recorded():
 
 
 def test_no_feature_reads_a_per_site_intensity():
-    """The counterpart of the self-report separation, for the intensity of each site.
-
-    ClinicalContext has nowhere to put an intensity, so the assembled vector cannot depend
-    on one however the sites were recorded.
-    """
     assert not [name for name in features.NAMES if "intensity" in name]
     assert not hasattr(ClinicalContext(), "intensity")
-
-
-# --- storage and the write path ----------------------------------------------------
 
 
 def test_a_structure_selected_on_the_model_records_its_pain_location(client, doctor_headers):
@@ -167,7 +148,7 @@ def test_a_structure_selected_on_the_model_records_its_pain_location(client, doc
         "JOINT_KNEE",
         "TEN_KNEE_MENISCUS",
     }
-    # Nothing was ticked on the flat diagram, so the site came entirely from the model.
+
     assert assessment["locations"] == [{"code": "KNEE", "side": "LEFT", "is_primary": True}]
     primary = next(site for site in assessment["anatomical_sites"] if site["is_primary"])
     assert primary["structure_code"] == "JOINT_KNEE"
@@ -241,8 +222,6 @@ def test_removing_a_structure_takes_its_location_with_it(client, doctor_headers)
     )
     assert {row["code"] for row in assessment["locations"]} == {"BACK_LUMBAR", "KNEE"}
 
-    # Only the sites are sent. The lumbar pick was made by hand, so it stays; the knee
-    # existed only because of the structure, so it goes with it.
     response = client.patch(
         f"/api/assessments/{assessment['id']}",
         headers=doctor_headers,
@@ -293,7 +272,6 @@ def test_the_estimate_sees_the_structures_and_not_their_intensities(client, doct
     assert ctx.structure_types == {"ORGAN"}
     before = features.vector(ctx)
 
-    # Rewriting the intensity cannot move the vector, because nothing carries it across.
     response = client.patch(
         f"/api/assessments/{created['id']}",
         headers=doctor_headers,
@@ -315,20 +293,9 @@ def test_the_estimate_sees_the_structures_and_not_their_intensities(client, doct
     assert np.array_equal(before, after, equal_nan=True)
 
 
-# --- the 3D model against the ontology ---------------------------------------------
-
 MODEL_SPEC = (
     pathlib.Path(__file__).resolve().parents[2] / "frontend" / "src" / "anatomy" / "model.ts"
 )
-
-# Sites a clinician records without pointing at anything: they are offered in the structure
-# list and the model draws no geometry for them, which is the point of them.
-WITHOUT_GEOMETRY = {
-    "REG_CHEST_DIFFUSE",
-    "REG_GENERALIZED",
-    "REG_UNSPECIFIED",
-    "ORG_PERITONEUM",
-}
 
 
 def _spec_codes() -> set[str]:
@@ -337,22 +304,18 @@ def _spec_codes() -> set[str]:
 
 @pytest.mark.skipif(not MODEL_SPEC.exists(), reason="the frontend is not part of this checkout")
 def test_the_3d_model_only_draws_structures_the_ontology_has():
-    """Geometry that names a code the server would reject is geometry nobody can record."""
     unknown = sorted(_spec_codes() - set(anatomy.BY_CODE))
     assert unknown == []
 
 
 @pytest.mark.skipif(not MODEL_SPEC.exists(), reason="the frontend is not part of this checkout")
-def test_every_structure_is_drawn_unless_it_is_one_of_the_unlocalisable_ones():
-    """The other direction: a new structure has to be given geometry or listed as having none.
-
-    Otherwise it would quietly become selectable from the list and invisible on the model.
-    """
-    undrawn = set(anatomy.BY_CODE) - _spec_codes()
-    assert undrawn == WITHOUT_GEOMETRY
-
-
-# --- the catalogue endpoint --------------------------------------------------------
+def test_has_mesh_says_exactly_which_structures_the_model_draws():
+    # has_mesh is the ontology's claim about the 3D model. Adding geometry means
+    # flipping the flag in the same change, and this is what notices if it is not.
+    drawn = _spec_codes()
+    flagged = {code for code, entry in anatomy.BY_CODE.items() if entry.has_mesh}
+    assert sorted(flagged - drawn) == []
+    assert sorted(drawn - flagged) == []
 
 
 def test_the_ontology_is_served_as_regions_types_and_structures(client, doctor_headers):

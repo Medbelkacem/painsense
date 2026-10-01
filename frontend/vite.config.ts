@@ -1,68 +1,50 @@
-import tailwind from '@tailwindcss/vite'
+import fs from 'node:fs'
+import path from 'node:path'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { fileURLToPath, URL } from 'node:url'
+import tailwindcss from '@tailwindcss/vite'
 
-// vitest/config re-exports Vite's defineConfig with the test options merged in.
-import { defineConfig } from 'vitest/config'
-import { VitePWA } from 'vite-plugin-pwa'
+/**
+ * HTTPS is read from frontend/certs/ when it is there, because camera and microphone access
+ * needs a secure context. A browser treats localhost as secure and a plain-http LAN address as
+ * not, so reaching the dev server from a phone at http://192.168.x.x:5173 means getUserMedia is
+ * refused before any permission prompt appears. `scripts/dev-cert.sh` issues the certificate.
+ *
+ * Without the certificate the server still starts, over http, and everything but camera and
+ * microphone works — on localhost those work too.
+ */
+// `import.meta.dirname`, not `__dirname`: vite's native config loader does not provide the
+// CommonJS globals and warns that relying on them will stop working.
+const certDir = path.resolve(import.meta.dirname, 'certs')
+const key = path.join(certDir, 'dev-key.pem')
+const cert = path.join(certDir, 'dev-cert.pem')
+const https =
+  fs.existsSync(key) && fs.existsSync(cert)
+    ? { key: fs.readFileSync(key), cert: fs.readFileSync(cert) }
+    : undefined
 
-const API_TARGET = process.env.API_URL ?? 'http://localhost:8000'
+if (!https) {
+  console.warn(
+    '[painsense] no dev certificate in frontend/certs — serving over http.\n' +
+      '            Camera and microphone will work on localhost but not from a phone.\n' +
+      '            Run ./scripts/dev-cert.sh to issue one.',
+  )
+}
+
+// The API is reached through the dev server rather than directly, so the page and the API
+// share an origin and the refresh cookie survives a reload. API_PROXY picks the backend when
+// it is not on 8000.
+const api = process.env.API_PROXY ?? 'http://127.0.0.1:8000'
 
 export default defineConfig({
-  resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
-  },
-  plugins: [
-    react(),
-    tailwind(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png'],
-      manifest: {
-        name: 'PainSense AI',
-        short_name: 'PainSense',
-        description:
-          'Intelligent pain assessment and clinical decision support.',
-        start_url: '/',
-        scope: '/',
-        display: 'standalone',
-        orientation: 'portrait-primary',
-        background_color: '#f2f6fb',
-        theme_color: '#0b3c7d',
-        icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        navigateFallback: '/index.html',
-        // The shell may be served from the cache. Clinical data may not: every /api call
-        // goes to the network and nothing from it is written to a cache the browser keeps.
-        navigateFallbackDenylist: [/^\/api\//],
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-            handler: 'NetworkOnly',
-          },
-        ],
-      },
-      devOptions: { enabled: false },
-    }),
-  ],
+  plugins: [react(), tailwindcss()],
   server: {
+    // Bound to every interface so a phone on the same network can reach it. Development only.
+    host: true,
     port: 5173,
+    https,
     proxy: {
-      '/api': { target: API_TARGET, changeOrigin: true },
+      '/api': { target: api, changeOrigin: true },
     },
-  },
-  test: {
-    environment: 'jsdom',
-    globals: true,
-    setupFiles: ['./src/test/setup.ts'],
-    css: false,
-    // The Playwright suite drives a real browser and has its own runner.
-    include: ['src/**/*.test.{ts,tsx}'],
   },
 })

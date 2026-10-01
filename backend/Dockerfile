@@ -6,22 +6,30 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /srv
 
-COPY requirements.txt ./
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt pyproject.toml ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY alembic.ini pyproject.toml ./
-COPY migrations ./migrations
-COPY app ./app
-COPY docker-entrypoint.sh /usr/local/bin/entrypoint
+COPY config.py ./
+COPY database ./database
+COPY knowledge ./knowledge
+COPY security ./security
+COPY dataset/__init__.py ./dataset/
+COPY dataset/synthetic ./dataset/synthetic
+COPY backend/alembic.ini ./
+COPY backend/migrations ./migrations
+COPY backend ./backend
+COPY backend/docker-entrypoint.sh /usr/local/bin/entrypoint
 RUN chmod +x /usr/local/bin/entrypoint
 
-# The keystore, the trained artifacts, the generated datasets and the uploaded documents
-# are all state. They belong on volumes, not in the image.
-RUN mkdir -p /srv/keystore /srv/models /srv/datasets /srv/storage/documents \
+RUN mkdir -p /srv/keystore /srv/models /srv/datasets /srv/storage/documents /srv/storage/external /srv/storage/signals /srv/storage/observations /srv/data \
     && useradd --system --uid 1001 painscore \
     && chown -R painscore:painscore /srv
 USER painscore
 
 EXPOSE 8000
 ENTRYPOINT ["entrypoint"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

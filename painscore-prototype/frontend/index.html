@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pain Score — multimodal estimation</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%234ea8de'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="identity">
+    <h1>Pain Score</h1>
+    <p>Multimodal non-invasive pain estimation &middot; 4-layer hybrid weighting</p>
+  </div>
+  <div class="header-right">
+    <span class="disclaimer">AI-assisted estimation tool, not a medical device</span>
+    <div class="header-controls">
+      <label>role
+        <select id="role">
+          <option value="nurse">nurse</option>
+          <option value="doctor">doctor</option>
+          <option value="admin">admin</option>
+          <option value="patient">patient</option>
+        </select>
+      </label>
+      <span id="security" class="badge">crypto &hellip;</span>
+      <span id="link" class="badge offline">offline</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="panel controls">
+    <h2>Live scenario</h2>
+    <div class="scenario-grid" id="scenarios"></div>
+    <label class="slider">pain level <output id="levelValue">6</output>
+      <input type="range" id="level" min="1" max="10" step="1" value="6">
+    </label>
+    <label class="slider">clinical context
+      <select id="context">
+        <option value="conscious_ward">conscious &mdash; ward</option>
+        <option value="conscious_er">conscious &mdash; emergency</option>
+        <option value="unconscious_sedated">unconscious &mdash; sedated</option>
+      </select>
+    </label>
+    <div class="camera" id="camera">camera &hellip;</div>
+    <div class="therapy" id="therapy"></div>
+  </section>
+
+  <section class="panel estimate">
+    <h2>Fused estimate</h2>
+    <p class="hint" id="withheld"></p>
+    <div class="fused">
+      <canvas id="gaugeFused" width="260" height="190"></canvas>
+      <div class="fused-readout">
+        <div class="status" id="status">waiting for signal</div>
+        <div class="confidence">
+          <span>confidence <strong id="confidenceValue">&mdash;</strong></span>
+          <div class="meter"><div id="confidenceBar"></div></div>
+        </div>
+        <div class="self-report">
+          <label><input type="checkbox" id="showReport" checked> show patient self-report (NRS)</label>
+          <p id="reportNote">Self-report is stored for comparison only and never reaches the model.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel alert" id="alertPanel">
+    <h2>Confounder analysis</h2>
+    <p id="alertText">waiting for signal</p>
+    <div class="observations" id="observations"></div>
+  </section>
+  <section class="panel streams">
+    <h2>Streams</h2>
+    <div class="stream-grid" id="streamGrid"></div>
+  </section>
+
+  <section class="panel weights">
+    <h2>Weights by layer</h2>
+    <p class="hint">base (clinical) &rarr; statistical &rarr; ML importance &rarr; after attenuation</p>
+    <div id="weightGrid"></div>
+  </section>
+
+
+  <section class="panel timeline">
+    <h2>Timeline</h2>
+    <canvas id="timeline" width="900" height="240"></canvas>
+    <div class="legend">
+      <span class="key gps">fused estimate</span>
+      <span class="key nrs">self-report NRS</span>
+      <span class="key truth">simulated ground truth</span>
+    </div>
+  </section>
+
+  <section class="panel results">
+    <h2>Offline evaluation &middot; patient-wise split</h2>
+    <div id="resultsTable">loading &hellip;</div>
+  </section>
+
+  <section class="panel audit">
+    <h2>Security and audit</h2>
+    <div id="securityDetail">loading &hellip;</div>
+    <button id="verify">verify audit chain</button>
+    <div id="verdict"></div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

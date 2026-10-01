@@ -3,9 +3,9 @@ from datetime import datetime, timedelta, timezone
 import jwt
 import pytest
 
-from app.config import get_settings
-from app.database.models import Role, User
-from app.security import authentication as auth
+from config import get_settings
+from database.models import Role, User
+from security import authentication as auth
 
 EMAIL = "n.haddad@chu-batna.dz"
 PASSWORD = "T4rget-Rotation-Sept"

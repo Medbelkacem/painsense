@@ -5,8 +5,8 @@
  * module carries no third-party mesh and no licence obligation beyond the repository's
  * own. It is schematic on purpose: its job is to let a clinician point at a structure and
  * have the record name that structure, not to be an anatomical atlas. A deployment that
- * holds a licensed atlas (BodyParts3D and its derivatives are CC BY-SA) can serve one
- * instead; see `atlas.ts` for the seam and what it asks of the asset.
+ * holds a licensed atlas (BodyParts3D and its derivatives are CC BY-SA) can swap one in
+ * behind `build.ts`, which is the only module that reads these shapes.
  *
  * Conventions, which the whole module depends on:
  *

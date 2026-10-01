@@ -1,7 +1,9 @@
-from tests.conftest import DOCTOR_EMAIL, PASSWORD
+from security import pqc
+from backend.tests.conftest import DOCTOR_EMAIL, PASSWORD
 
 CHEST_CASE = {
     "onset": "SUDDEN",
+    "onset_speed": "MINUTES",
     "duration_hours": 3.0,
     "pattern": "INTERMITTENT",
     "course": "WORSENING",
@@ -12,11 +14,27 @@ CHEST_CASE = {
     "symptom_codes": ["SWEATING", "DYSPNOEA", "NAUSEA"],
     "factor_codes": ["EXERCISE", "REST"],
     "confounder_codes": ["ANXIETY"],
+    "functional_impact": {
+        "mobility": 3,
+        "sleep": 3,
+        "work": 4,
+        "daily_activity": 3,
+        "self_care": 2,
+    },
+    "medications": [
+        {
+            "class_code": "ACETAMINOPHEN",
+            "name": "Paracetamol",
+            "dose_category": "STANDARD",
+            "frequency": "AS_NEEDED",
+            "hours_since_last_dose": 5.0,
+            "pain_effect": "PARTIAL",
+            "sedation_effect": "NONE",
+        }
+    ],
     "answers": {
         "FIRST_EPISODE": True,
-        "FUNCTIONAL_IMPACT": "SEVERE",
-        "SLEEP_DISTURBED": True,
-        "ANALGESIA_TAKEN": False,
+        "REGULAR_MEDICATION": True,
         "CHEST_EXERTIONAL": True,
         "CHEST_RELIEVED_BY_REST": True,
         "ECG_RESULT": "ABNORMAL",
@@ -120,7 +138,7 @@ def test_patient_codes_are_issued_in_sequence(client, doctor_headers):
 
 
 def test_the_stored_patient_row_does_not_hold_the_name(client, doctor_headers, db):
-    from app.database.models import Patient
+    from database.models import Patient
 
     created = make_patient(client, doctor_headers)
     row = db.get(Patient, __import__("uuid").UUID(created["id"]))
@@ -351,18 +369,18 @@ def test_integrity_reports_both_chains(client, doctor_headers):
     assert "ML-DSA" in status["signature_scheme"]
 
 
-def test_the_security_page_probes_the_primitives(client, doctor_headers):
-    body = client.get("/api/security", headers=doctor_headers).json()
+def test_the_security_page_probes_the_primitives(client, admin_headers):
+    body = client.get("/api/security", headers=admin_headers).json()
     named = {entry["name"]: entry["status"] for entry in body["algorithms"]}
     assert named["AES-256-GCM"] == "ACTIVE"
-    assert named["X25519 with ML-KEM-768"] == "ACTIVE"
-    assert named["Ed25519 with ML-DSA-65"] == "ACTIVE"
+    assert named[pqc.kem_scheme()] == "ACTIVE"
+    assert named[pqc.sign_scheme()] == "ACTIVE"
     assert named["TLS"] == "DEPLOYMENT"
     assert body["keys"]
 
 
-def test_the_model_page_reports_measured_metrics(client, doctor_headers):
-    body = client.get("/api/ai-model", headers=doctor_headers).json()
+def test_the_model_page_reports_measured_metrics(client, admin_headers):
+    body = client.get("/api/model", headers=admin_headers).json()
     assert body["trained"]
     assert 0 <= body["active"]["mae"] <= 10
     assert body["active"]["n_test"] > 0
@@ -373,9 +391,7 @@ def test_the_model_page_reports_measured_metrics(client, doctor_headers):
 def test_training_and_dataset_generation_are_restricted_to_administrators(
     client, doctor_headers
 ):
-    assert (
-        client.post("/api/ai-model/train", headers=doctor_headers, json={}).status_code == 403
-    )
+    assert client.post("/api/model/train", headers=doctor_headers, json={}).status_code == 403
     assert (
         client.post("/api/datasets/generate", headers=doctor_headers, json={}).status_code
         == 403
@@ -402,7 +418,6 @@ def test_repeated_failed_logins_are_rate_limited(client):
 
 
 def test_successful_sign_ins_are_not_rate_limited(client):
-    # A whole department can share one address, so only failures count towards the limit.
     statuses = [
         client.post(
             "/api/auth/login", json={"email": DOCTOR_EMAIL, "password": PASSWORD}
@@ -437,7 +452,7 @@ def test_registration_never_grants_administrator_rights(client):
     assert body["user"]["role"] == "DOCTOR"
 
     headers = {"Authorization": f"Bearer {body['access_token']}"}
-    assert client.post("/api/ai-model/train", headers=headers, json={}).status_code == 403
+    assert client.post("/api/model/train", headers=headers, json={}).status_code == 403
 
 
 def test_a_doctor_must_give_a_speciality(client):

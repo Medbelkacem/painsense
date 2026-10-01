@@ -1,5 +1,5 @@
-from app.knowledge import causes, questions, rules
-from app.knowledge.context import ClinicalContext, Criteria
+from knowledge import causes, questions, rules
+from knowledge.context import ClinicalContext, Criteria
 
 
 def chest_case(**overrides) -> ClinicalContext:

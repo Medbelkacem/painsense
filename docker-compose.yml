@@ -14,7 +14,9 @@ services:
       retries: 20
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://painscore:${POSTGRES_PASSWORD:-painscore}@postgres:5432/painscore
       MASTER_KEY: ${MASTER_KEY:?set MASTER_KEY in .env}
@@ -29,14 +31,71 @@ services:
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Administrator}
+      EXTERNAL_DATASET_PATH: /srv/storage/external
+      SIGNAL_STORE_PATH: /srv/storage/signals
+      EPIDEMIC_DATA_PATH: /srv/data
+      SYNC_ENABLED: ${SYNC_ENABLED:-true}
+      SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-360}
+      SYNC_AUTO_ACQUIRE: ${SYNC_AUTO_ACQUIRE:-true}
+      SYNC_AUTO_TRAIN: ${SYNC_AUTO_TRAIN:-true}
+      SYNC_MAX_DATASET_BYTES: ${SYNC_MAX_DATASET_BYTES:-268435456}
+      SYNC_MAX_ACQUISITIONS_PER_RUN: ${SYNC_MAX_ACQUISITIONS_PER_RUN:-3}
+      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
+      KAGGLE_KEY: ${KAGGLE_KEY:-}
     volumes:
       - keystore:/srv/keystore
       - models:/srv/models
       - datasets:/srv/datasets
       - documents:/srv/storage/documents
+      - external:/srv/storage/external
+      - signals:/srv/storage/signals
+      - epidemic:/srv/data
     depends_on:
       postgres:
         condition: service_healthy
+
+  # The background worker. It drains the job queue and, on the interval each source row
+  # carries, queues and runs the external dataset synchronisation. Without it datasets
+  # are only ever collected when someone asks for a run from the interface.
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ['python', '-m', 'backend.worker']
+    environment:
+      DATABASE_URL: postgresql+psycopg://painscore:${POSTGRES_PASSWORD:-painscore}@postgres:5432/painscore
+      MASTER_KEY: ${MASTER_KEY:?set MASTER_KEY in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+      KEY_STORE_PATH: /srv/keystore
+      MODEL_STORE_PATH: /srv/models
+      DATASET_PATH: /srv/datasets
+      DOCUMENT_STORE_PATH: /srv/storage/documents
+      EXTERNAL_DATASET_PATH: /srv/storage/external
+      SIGNAL_STORE_PATH: /srv/storage/signals
+      EPIDEMIC_DATA_PATH: /srv/data
+      PAINSCORE_ENV: ${PAINSCORE_ENV:-production}
+      SYNC_ENABLED: ${SYNC_ENABLED:-true}
+      SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-360}
+      SYNC_AUTO_ACQUIRE: ${SYNC_AUTO_ACQUIRE:-true}
+      SYNC_AUTO_TRAIN: ${SYNC_AUTO_TRAIN:-true}
+      SYNC_MAX_DATASET_BYTES: ${SYNC_MAX_DATASET_BYTES:-268435456}
+      SYNC_MAX_ACQUISITIONS_PER_RUN: ${SYNC_MAX_ACQUISITIONS_PER_RUN:-3}
+      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
+      KAGGLE_KEY: ${KAGGLE_KEY:-}
+    volumes:
+      - keystore:/srv/keystore
+      - models:/srv/models
+      - datasets:/srv/datasets
+      - documents:/srv/storage/documents
+      - external:/srv/storage/external
+      - signals:/srv/storage/signals
+      - epidemic:/srv/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
 
   frontend:
     build: ./frontend
@@ -51,3 +110,6 @@ volumes:
   models:
   datasets:
   documents:
+  external:
+  signals:
+  epidemic:

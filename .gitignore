@@ -1,28 +1,43 @@
-# Python
 __pycache__/
 *.py[cod]
 .venv/
 .pytest_cache/
 .ruff_cache/
 
-# Node
 node_modules/
 dist/
 dev-dist/
 
-# Secrets and local state
 .env
 *.db
 
-# Generated at runtime: keys, trained artifacts, synthetic datasets, uploaded documents
-keystore/
-models/
-datasets/
-storage/
+/keystore/
+/models/
+/storage/
+/backend/keystore/
+/backend/models/
+/backend/storage/
+/backend/datasets/
+/dataset/raw/
+/dataset/sources/
+/dataset/metadata/
+/dataset/reports/
+/dataset/*.parquet
 
-# Test output
 playwright-report/
 test-results/
 
-# TypeScript incremental build state
 *.tsbuildinfo
+
+# Development TLS certificate for camera and microphone access over the LAN.
+# Self-signed and machine-specific; reissue with scripts/dev-cert.sh.
+frontend/certs/
+
+# The PainMonit database, as downloaded. Obtained under a usage agreement that permits
+# academic research only and forbids redistribution, so it must never enter a commit.
+# `app.signals.training` is pointed at it with --dataset and reads it in place.
+/26965159/
+PMED.zip
+PMCD.zip
+PMHDB/
+PMPDB/

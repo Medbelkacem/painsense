@@ -1,0 +1,145 @@
+{
+  "streams": {
+    "A": {
+      "mae": 1.314,
+      "rmse": 1.913,
+      "pearson_r": 0.831,
+      "name": "neuro-muscular"
+    },
+    "B": {
+      "mae": 1.999,
+      "rmse": 2.672,
+      "pearson_r": 0.631,
+      "name": "smart patch"
+    },
+    "C": {
+      "mae": 1.065,
+      "rmse": 1.591,
+      "pearson_r": 0.887,
+      "name": "contextual AI"
+    }
+  },
+  "simple_average": {
+    "mae": 1.266,
+    "rmse": 1.596,
+    "pearson_r": 0.915
+  },
+  "hybrid_fusion": {
+    "mae": 1.157,
+    "rmse": 1.491,
+    "pearson_r": 0.922
+  },
+  "ablations": {
+    "without_base": {
+      "mae": 1.121,
+      "rmse": 1.454,
+      "pearson_r": 0.925,
+      "mae_delta": -0.036
+    },
+    "without_statistical": {
+      "mae": 1.155,
+      "rmse": 1.489,
+      "pearson_r": 0.922,
+      "mae_delta": -0.002
+    },
+    "without_ml": {
+      "mae": 1.198,
+      "rmse": 1.535,
+      "pearson_r": 0.918,
+      "mae_delta": 0.041
+    },
+    "without_attenuation": {
+      "mae": 1.201,
+      "rmse": 1.528,
+      "pearson_r": 0.921,
+      "mae_delta": 0.044
+    }
+  },
+  "robustness": {
+    "all test windows": {
+      "windows": 1760,
+      "insufficient_signal": 22,
+      "A": 1.314,
+      "B": 1.999,
+      "C": 1.065,
+      "simple_average": 1.266,
+      "hybrid_fusion": 1.157
+    },
+    "clean signal": {
+      "windows": 1218,
+      "insufficient_signal": 0,
+      "A": 1.215,
+      "B": 2.051,
+      "C": 0.905,
+      "simple_average": 1.187,
+      "hybrid_fusion": 1.088
+    },
+    "face occluded": {
+      "windows": 368,
+      "insufficient_signal": 22,
+      "A": 1.329,
+      "B": 2.067,
+      "C": 1.56,
+      "simple_average": 1.501,
+      "hybrid_fusion": 1.365
+    },
+    "sedated": {
+      "windows": 132,
+      "insufficient_signal": 1,
+      "A": 1.876,
+      "B": 1.397,
+      "C": 1.5,
+      "simple_average": 1.346,
+      "hybrid_fusion": 1.366
+    },
+    "one sensor down": {
+      "windows": 99,
+      "insufficient_signal": 1,
+      "A": 1.538,
+      "B": 2.093,
+      "C": 1.55,
+      "simple_average": 1.638,
+      "hybrid_fusion": 1.189
+    },
+    "two or more down": {
+      "windows": 77,
+      "insufficient_signal": 20,
+      "A": 1.965,
+      "B": 1.907,
+      "C": 1.654,
+      "simple_average": 1.771,
+      "hybrid_fusion": 1.479
+    }
+  },
+  "self_report_reference": {
+    "mae": 0.783,
+    "rmse": 1.205,
+    "pearson_r": 0.937,
+    "windows": 1607,
+    "note": "patient NRS against ground truth, never a model input"
+  },
+  "windows": {
+    "test_windows": 1760,
+    "evaluated": 1738,
+    "insufficient_signal": 22
+  },
+  "split": {
+    "train_patients": 25,
+    "test_patients": 11,
+    "train_windows": 4000,
+    "test_windows": 1760,
+    "model": "XGBRegressor"
+  },
+  "learned_weights": {
+    "statistical": {
+      "A": 0.3539,
+      "B": 0.2724,
+      "C": 0.3736
+    },
+    "ml": {
+      "A": 0.4323,
+      "B": 0.1545,
+      "C": 0.4132
+    }
+  }
+}

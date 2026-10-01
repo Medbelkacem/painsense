@@ -1,0 +1,36 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.3.0
+python-multipart==0.0.20
+
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+
+pyjwt==2.10.1
+argon2-cffi==23.1.0
+cryptography==44.0.0
+pqcrypto==1.0.0
+
+numpy==2.2.1
+pandas==2.2.3
+scipy==1.15.0
+scikit-learn==1.6.0
+shap==0.46.0
+joblib==1.4.2
+pyarrow==25.0.1
+
+# Face and eye measurement from a recorded clip. The headless wheel because the server
+# draws nothing; pinned to the 4.x line because 5.x drops the cascade classifier and the
+# cascade data files from the wheel, and both are what the eye localisation runs on.
+opencv-python-headless==4.12.0.88
+
+# Serial acquisition for USB-connected EEG and EMG amplifiers.
+# BLE acquisition additionally needs `bleak`, which is imported lazily and reported as
+# unavailable rather than required, because it pulls in a D-Bus stack on Linux.
+pyserial==3.5
+
+reportlab==5.0.1
+pypdf==6.19.0

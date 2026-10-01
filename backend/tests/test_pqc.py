@@ -1,4 +1,6 @@
-from app.security import key_management, pqc
+import json
+
+from security import key_management, pqc
 
 
 def test_hybrid_kem_agrees_on_a_shared_secret():
@@ -28,8 +30,6 @@ ED25519_SIG_LEN = 64
 
 
 def test_post_quantum_half_of_the_signature_is_checked():
-    # Valid Ed25519 prefix, ML-DSA half lifted from a signature over another message:
-    # this only fails verification if both halves are actually checked.
     public, secret = pqc.generate_signature_keypair()
     valid = pqc.sign_data(secret, b"block 1")
     other = pqc.sign_data(secret, b"block 2")
@@ -57,6 +57,21 @@ def test_keystore_reuses_its_material_across_calls():
     assert first.fingerprint == second.fingerprint
 
 
+def test_keystore_migrates_legacy_metadata_without_replacing_keys(tmp_path):
+    public, secret = pqc.generate_signature_keypair("Ed25519+ML-DSA-65")
+    (tmp_path / "ledger-signing.pub").write_bytes(public)
+    (tmp_path / "ledger-signing.key").write_bytes(secret)
+    (tmp_path / "ledger-signing.json").write_text(
+        json.dumps({"scheme": "Ed25519+ML-DSA-65", "fingerprint": pqc.fingerprint(public)})
+    )
+
+    migrated = key_management.Keystore(tmp_path).current("ledger-signing")
+
+    assert migrated.public == public
+    assert migrated.secret == secret
+    assert migrated.scheme == "Ed25519+ML-DSA-65"
+
+
 def test_signing_and_transport_keys_are_distinct():
     signing = key_management.ledger_signing_key()
     transport = key_management.transport_kem_key()
@@ -64,7 +79,11 @@ def test_signing_and_transport_keys_are_distinct():
     assert signing.scheme != transport.scheme
 
 
-def test_secret_key_file_is_not_readable_by_others():
+def test_secret_key_files_are_not_readable_by_others():
     key_management.ledger_signing_key()
-    mode = (key_management.keystore_path() / "ledger-signing.key").stat().st_mode
-    assert mode & 0o077 == 0
+    key_management.transport_kem_key()
+
+    secrets = sorted(key_management.keystore_path().glob("*.key"))
+    assert secrets, "no secret key was written to the keystore"
+    for path in secrets:
+        assert path.stat().st_mode & 0o077 == 0, path.name
