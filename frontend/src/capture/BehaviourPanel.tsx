@@ -168,8 +168,8 @@ export const BehaviourPanel: React.FC<BehaviourPanelProps> = ({
   }, [capture.stream]);
 
   const grant = useCallback(
-    async (granted: boolean) => {
-      if (!patientId) return;
+    async (granted: boolean): Promise<boolean> => {
+      if (!patientId) return false;
       setFailure(null);
       try {
         await request(`/api/behaviour/patients/${patientId}/consent`, {
@@ -177,20 +177,26 @@ export const BehaviourPanel: React.FC<BehaviourPanelProps> = ({
           body: { granted },
         });
         consent.reload();
+        return true;
       } catch (cause) {
         setFailure(cause instanceof ApiError ? cause.message : 'The consent was not recorded.');
+        return false;
       }
     },
     [consent, patientId],
   );
 
-  const begin = useCallback(() => {
+  // One button does both when consent is still missing: recording it and opening the
+  // devices are the same moment at the bedside, and a greyed-out button with the reason
+  // three cards away was read as "the camera does not work".
+  const begin = useCallback(async () => {
+    if (!consented && !(await grant(true))) return;
     void capture.start(kind, {
       cameraId: cameraId ?? undefined,
       microphoneId: microphoneId ?? undefined,
       facing: capture.facing,
     });
-  }, [capture, kind, cameraId, microphoneId]);
+  }, [capture, consented, grant, kind, cameraId, microphoneId]);
 
   const flip = useCallback(() => {
     const facing = capture.facing === 'user' ? 'environment' : 'user';
@@ -419,10 +425,14 @@ export const BehaviourPanel: React.FC<BehaviourPanelProps> = ({
                   variant="primary"
                   className="flex-1"
                   icon={<Camera className="h-4 w-4" />}
-                  disabled={!consented || capture.status === 'requesting'}
-                  onClick={begin}
+                  disabled={!patientId || capture.status === 'requesting'}
+                  onClick={() => void begin()}
                 >
-                  {capture.status === 'requesting' ? 'Asking…' : 'Open devices'}
+                  {capture.status === 'requesting'
+                    ? 'Asking…'
+                    : consented
+                      ? 'Open devices'
+                      : 'Record consent and open devices'}
                 </Button>
               ) : (
                 <Button
@@ -442,8 +452,9 @@ export const BehaviourPanel: React.FC<BehaviourPanelProps> = ({
               </Button>
             </div>
             {!consented && (
-              <p className="text-[11px] text-faint">
-                Record the patient's consent above to enable the camera.
+              <p className="text-[11.5px] leading-relaxed text-faint">
+                Opening the devices records the patient's consent to the recording first. The
+                browser then asks for its own camera and microphone permission.
               </p>
             )}
           </Card>

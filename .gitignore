@@ -41,3 +41,5 @@ PMED.zip
 PMCD.zip
 PMHDB/
 PMPDB/
+*.db-wal
+*.db-shm

@@ -38,8 +38,8 @@ from backend.api import (
     signals,
 )
 from config import get_settings
-from database.session import SessionLocal, engine
 from database.seed import seed_reference_data
+from database.session import SessionLocal, engine
 from security.encryption import KeyVersionUnavailable
 from security.key_management import KeyManagementService
 
@@ -250,7 +250,7 @@ async def request_context(request: Request, call_next):
 
         response.headers["Cache-Control"] = "no-store"
         health.metrics.observe(_route_name(request), response.status_code, elapsed)
-        user = getattr(request.state, "user", None)
+        actor = getattr(request.state, "actor_id", None)
         logger.info(
             "%s %s %d %.1fms",
             request.method,
@@ -263,7 +263,7 @@ async def request_context(request: Request, call_next):
                 "path": request.url.path,
                 "status": response.status_code,
                 "elapsed_ms": round(elapsed, 1),
-                "actor": str(user.id) if user is not None else None,
+                "actor": actor,
             },
         )
     return response

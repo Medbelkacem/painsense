@@ -162,11 +162,11 @@ def markdown(report: dict[str, Any]) -> str:
     lines = [
         "# Dataset statistics",
         "",
-        f"Generated {report['generated_at']} by `dataset.pipeline statistics` from "
-        f"`{Path(report['unified_path']).name}`.",
+        (f"Generated {report['generated_at']} by `dataset.pipeline statistics` from "
+        f"`{Path(report['unified_path']).name}`."),
         "",
-        "Every figure here is computed from the parquet on disk. No statistic is carried over "
-        "from a publisher's description of their data.",
+        ("Every figure here is computed from the parquet on disk. No statistic is carried over "
+        "from a publisher's description of their data."),
         "",
         "## Totals",
         "",
@@ -174,25 +174,25 @@ def markdown(report: dict[str, Any]) -> str:
         f"- Unique patients: **{report['unique_patients']:,}**",
         f"- Sources represented: **{report['datasets_represented']}**",
         f"- Real records: **{real['real_records']:,}** across {real['real_patients']:,} patients",
-        f"- Synthetic records: **{real['synthetic_records']:,}** across "
-        f"{real['synthetic_patients']:,} patients",
+        (f"- Synthetic records: **{real['synthetic_records']:,}** across "
+        f"{real['synthetic_patients']:,} patients"),
         "",
         "## The regression target",
         "",
         f"- Records carrying `{TARGET}`: **{report['nrs_target']['records_with_target']:,}**",
         f"- Records without it: **{report['nrs_target']['records_without_target']:,}**",
         "",
-        "A record carries the target only where its publisher documents the pain label as a "
+        ("A record carries the target only where its publisher documents the pain label as a "
         "0-10 numeric rating scale. Where they document a different scale, the published value "
         "is kept verbatim in `original_pain_score` and the target stays null, because no "
-        "conversion between scales is invented.",
+        "conversion between scales is invented."),
         "",
     ]
     summary = report["nrs_target"]["summary"]
     if summary:
         lines += [
-            f"- Target range {summary['min']} to {summary['max']}, mean {summary['mean']}, "
-            f"standard deviation {summary['std']}, median {summary['median']}",
+            (f"- Target range {summary['min']} to {summary['max']}, mean {summary['mean']}, "
+            f"standard deviation {summary['std']}, median {summary['median']}"),
             "",
         ]
     lines += _table(
@@ -274,8 +274,8 @@ def markdown(report: dict[str, Any]) -> str:
     if demographics["age"]:
         age = demographics["age"]
         lines += [
-            f"- Age present on {age['count']:,} records, range {age['min']} to {age['max']}, "
-            f"mean {age['mean']}",
+            (f"- Age present on {age['count']:,} records, range {age['min']} to {age['max']}, "
+            f"mean {age['mean']}"),
             "",
         ]
     lines += _table("Sex", demographics["sex"], headers=("sex", "records"))

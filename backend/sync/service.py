@@ -28,6 +28,9 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.sync import catalog, diseases, licensing, profile, storage, suitability, validate
+from backend.sync import sources as connectors
+from backend.sync.sources import RemoteDataset, Unavailable
 from config import get_settings
 from database.models import (
     Availability,
@@ -42,9 +45,6 @@ from database.models import (
     SyncRun,
     SyncStage,
 )
-from backend.sync import catalog, diseases, licensing, profile, storage, suitability, validate
-from backend.sync import sources as connectors
-from backend.sync.sources import RemoteDataset, Unavailable
 
 logger = logging.getLogger("painsense.sync")
 

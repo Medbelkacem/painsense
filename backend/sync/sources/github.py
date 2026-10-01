@@ -21,7 +21,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from database.models import Granularity, SourceAccess
 from backend.sync import http
 from backend.sync.sources.base import (
     SOURCE_CODE,
@@ -32,6 +31,7 @@ from backend.sync.sources.base import (
     dominant_format,
 )
 from backend.sync.storage import safe_extract
+from database.models import Granularity, SourceAccess
 
 API = "https://api.github.com"
 

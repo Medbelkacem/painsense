@@ -6,10 +6,10 @@ import numpy as np
 import pytest
 
 from backend.ai import features, inputs
+from backend.tests.test_api import CHEST_CASE, make_assessment, make_patient
 from database.models import AssessmentAnatomicalSite, PainAssessment
 from knowledge import anatomy, locations
 from knowledge.context import ClinicalContext
-from backend.tests.test_api import CHEST_CASE, make_assessment, make_patient
 
 KNEE_CASE = {
     "anatomical_sites": [

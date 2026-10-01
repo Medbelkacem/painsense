@@ -24,10 +24,10 @@ import pandas as pd
 import pytest
 from sqlalchemy import select
 
-from database.models import ModelVersion
 from backend.signals import features as feature_module
 from backend.signals import inference, painmonit, quality
 from backend.signals import training as signal_training
+from database.models import ModelVersion
 
 RATE = painmonit.SAMPLE_RATE_HZ
 SUBJECTS = 8

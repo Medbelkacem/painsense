@@ -164,16 +164,9 @@ export const Assessments: React.FC = () => {
       header: 'Status',
       align: 'right',
       cell: (row) => (
-        <div className="flex items-center justify-end gap-1.5">
-          {row.is_synthetic && (
-            <Pill tone="violet" size="xs">
-              synthetic
-            </Pill>
-          )}
-          <Pill tone={STATUS_TONE[row.status]} size="xs" dot>
-            {STATUS_WORD[row.status]}
-          </Pill>
-        </div>
+        <Pill tone={STATUS_TONE[row.status]} size="xs" dot>
+          {STATUS_WORD[row.status]}
+        </Pill>
       ),
     },
   ];
@@ -232,7 +225,7 @@ export const Assessments: React.FC = () => {
             columns={columns}
             rows={rows}
             rowKey={(row) => row.id}
-            onRowClick={(row) => navigate(`/patients/${row.patient_id}`)}
+            onRowClick={(row) => navigate(`/assessments/${row.id}`)}
             empty={
               <EmptyState
                 icon={<SlidersHorizontal className="h-5 w-5" />}

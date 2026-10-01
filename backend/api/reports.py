@@ -3,9 +3,10 @@ import uuid
 from fastapi import APIRouter, Request, Response
 
 from backend.api.assessments import get_assessment
-from database.models import User
-from backend.dependencies import ClinicalUser, DbSession, client_ip
+from backend.api.patients import require_view
+from backend.dependencies import DbSession, ViewerUser, client_ip
 from backend.reports.pdf_generator import build_report
+from database.models import User
 from security import audit
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -13,9 +14,10 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 @router.post("/{assessment_id}/generate")
 def generate_report(
-    assessment_id: uuid.UUID, request: Request, db: DbSession, user: ClinicalUser
+    assessment_id: uuid.UUID, request: Request, db: DbSession, user: ViewerUser
 ) -> Response:
     assessment = get_assessment(db, assessment_id)
+    require_view(user, assessment.patient_id)
 
     assessor = db.get(User, assessment.doctor_id) or user
     pdf = build_report(db, assessment, assessor)

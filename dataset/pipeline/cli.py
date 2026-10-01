@@ -30,8 +30,8 @@ KAGGLE_SELECTION: tuple[tuple[str, str | None], ...] = (
     ("ahsanraza12/pain-detection-biosignals-200-patients", None),
     (
         "messaoudmezati/painspeech-4-arabic-speech-dataset",
-        "CC BY-NC 4.0 permits non-commercial use with attribution; this is a non-commercial "
-        "academic research prototype and the dataset is not redistributed",
+        ("CC BY-NC 4.0 permits non-commercial use with attribution; this is a non-commercial "
+        "academic research prototype and the dataset is not redistributed"),
     ),
 )
 
@@ -106,9 +106,9 @@ def access_markdown(steps: list[dict[str, Any]]) -> str:
         "",
         f"Generated {registry.now()} by `dataset.pipeline run`.",
         "",
-        "What each source's publisher permits, what this pipeline therefore did, and what a "
+        ("What each source's publisher permits, what this pipeline therefore did, and what a "
         "person would have to do to obtain the rest. An access status here is read from the "
-        "publisher's own page at the time of the run, not assumed.",
+        "publisher's own page at the time of the run, not assumed."),
         "",
         "## Status of every registered source",
         "",
@@ -128,14 +128,14 @@ def access_markdown(steps: list[dict[str, Any]]) -> str:
     lines.append("")
 
     lines += [
-        "A record or subject count in that table is only a measurement where the source was "
+        ("A record or subject count in that table is only a measurement where the source was "
         "obtained. For a source that was not obtained it is the publisher's stated figure, and "
-        "the registry entry's note says so.",
+        "the registry entry's note says so."),
         "",
-        "An obtained source shows no record count when its directory holds no machine-readable "
+        ("An obtained source shows no record count when its directory holds no machine-readable "
         "table, or holds several tables that are separate entities rather than parts of one "
         "set — adding those together would not give a record count. The per-table measurement "
-        "is in `metadata/profiles/<dataset_id>.json`.",
+        "is in `metadata/profiles/<dataset_id>.json`."),
         "",
         "## What was obtained",
         "",
@@ -149,8 +149,8 @@ def access_markdown(steps: list[dict[str, Any]]) -> str:
                 f"- Source: {record.get('source')} — {record.get('source_url')}",
                 f"- Licence: {record.get('license')}",
                 f"- Downloaded: {record.get('downloaded_at')}",
-                f"- Archive: {record.get('archive_bytes', 0):,} bytes, "
-                f"sha256 `{record.get('archive_sha256')}`",
+                (f"- Archive: {record.get('archive_bytes', 0):,} bytes, "
+                f"sha256 `{record.get('archive_sha256')}`"),
                 f"- Files extracted: {record.get('file_count')}",
                 "",
             ]
@@ -174,17 +174,17 @@ def access_markdown(steps: list[dict[str, Any]]) -> str:
     lines += [
         "## What a person would have to do to obtain the rest",
         "",
-        "Each restricted or credentialed source has its procedure recorded in its own access "
-        "report under `dataset/metadata`:",
+        ("Each restricted or credentialed source has its procedure recorded in its own access "
+        "report under `dataset/metadata`:"),
         "",
-        "- `biovid_access_report.json` — the agreement form, who authorises it, and the parts "
-        "the publisher documents",
+        ("- `biovid_access_report.json` — the agreement form, who authorises it, and the parts "
+        "the publisher documents"),
         "- `tame_pain_access_report.json` — the PhysioNet data use agreement for that project",
         "- `physionet_access_report.json` — the procedure for each access status PhysioNet uses",
         "",
-        "None of those procedures can be completed by a pipeline. Each requires a named person "
+        ("None of those procedures can be completed by a pipeline. Each requires a named person "
         "to agree to terms, and in PhysioNet's credentialed case to hold a human-subjects "
-        "training certificate.",
+        "training certificate."),
         "",
         "## Steps in this run",
         "",

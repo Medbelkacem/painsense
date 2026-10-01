@@ -37,12 +37,16 @@ class Role(str, enum.Enum):
     SUPER_ADMIN = "SUPER_ADMIN"
     CLINIC_ADMIN = "CLINIC_ADMIN"
     DOCTOR = "DOCTOR"
+    NURSE = "NURSE"
+    PATIENT = "PATIENT"
     RESEARCHER = "RESEARCHER"
     AUDITOR = "AUDITOR"
 
 
 ADMIN_ROLES = frozenset({Role.SUPER_ADMIN, Role.CLINIC_ADMIN})
-CLINICAL_ROLES = frozenset({Role.SUPER_ADMIN, Role.CLINIC_ADMIN, Role.DOCTOR})
+CLINICAL_ROLES = frozenset({Role.SUPER_ADMIN, Role.CLINIC_ADMIN, Role.DOCTOR, Role.NURSE})
+# A patient account reads its own record and nothing else.
+VIEWER_ROLES = CLINICAL_ROLES | {Role.PATIENT}
 
 
 class PainSiteRole(str, enum.Enum):
@@ -353,7 +357,15 @@ class User(Base):
 
     sessions_revoked_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
     preferred_language: Mapped[str] = mapped_column(String(8), default="en")
+    #: Set on a PATIENT account only: the record that account is allowed to read.
+    patient_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("patients.id"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)
+
+    patient: Mapped["Patient | None"] = relationship(foreign_keys=[patient_id])
+
+    @property
+    def patient_code(self) -> str | None:
+        return self.patient.code if self.patient is not None else None
 
 
 class SessionToken(Base):
@@ -376,6 +388,8 @@ class Patient(Base):
     id: Mapped[uuid.UUID] = _pk()
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     sex: Mapped[Sex] = _enum(Sex, default=Sex.UNDISCLOSED)
+    #: Age as entered at registration. The date of birth, when it is known, wins over it.
+    age_years: Mapped[int | None] = mapped_column(Integer)
     birth_date: Mapped[date | None] = mapped_column(Date)
     ward: Mapped[str | None] = mapped_column(String(80))
     smoking_status: Mapped[SmokingStatus] = _enum(SmokingStatus, default=SmokingStatus.UNKNOWN)
@@ -412,7 +426,7 @@ class Patient(Base):
 
     def age_on(self, moment: date) -> int | None:
         if self.birth_date is None:
-            return None
+            return self.age_years
         years = moment.year - self.birth_date.year
         if (moment.month, moment.day) < (self.birth_date.month, self.birth_date.day):
             years -= 1
@@ -481,6 +495,9 @@ class PainAssessment(Base):
     onset: Mapped[Onset] = _enum(Onset, default=Onset.UNKNOWN)
     onset_speed: Mapped[OnsetSpeed] = _enum(OnsetSpeed, default=OnsetSpeed.UNKNOWN)
     started_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    #: The duration as the clinician typed it, and the same span in hours for the model.
+    duration_value: Mapped[float | None] = mapped_column(Float)
+    duration_unit: Mapped[str | None] = mapped_column(String(8))
     duration_hours: Mapped[float | None] = mapped_column(Float)
     pattern: Mapped[Pattern] = _enum(Pattern, default=Pattern.UNKNOWN)
     course: Mapped[Course] = _enum(Course, default=Course.UNKNOWN)
@@ -513,6 +530,11 @@ class PainAssessment(Base):
 
     recent_trauma: Mapped[bool] = mapped_column(Boolean, default=False)
     recent_surgery: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Free text beside the coded pickers, for whatever the vocabulary does not cover.
+    symptoms_note: Mapped[str | None] = mapped_column(Text)
+    aggravating_note: Mapped[str | None] = mapped_column(Text)
+    relieving_note: Mapped[str | None] = mapped_column(Text)
 
     validated_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
     validated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))

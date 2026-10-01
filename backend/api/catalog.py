@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from backend.api import schemas
+from backend.dependencies import CurrentUser, DbSession
 from database.models import (
     Confounder,
     Disease,
@@ -14,7 +15,6 @@ from database.models import (
     Patient,
     Symptom,
 )
-from backend.dependencies import CurrentUser, DbSession
 from knowledge import (
     causes,
     medications,

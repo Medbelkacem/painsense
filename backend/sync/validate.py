@@ -18,8 +18,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from database.models import QualityStatus
 from backend.sync import profile as profiling
+from database.models import QualityStatus
 
 ERROR = "error"
 WARNING = "warning"

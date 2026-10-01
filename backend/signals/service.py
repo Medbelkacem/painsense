@@ -34,6 +34,10 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from backend.signals import acquisition, inference, integrity, schema, storage
+from backend.signals import features as feature_module
+from backend.signals import quality as quality_module
+from backend.signals.devices.base import DeviceUnavailable
 from database.models import (
     Patient,
     PatientConsent,
@@ -42,10 +46,6 @@ from database.models import (
     SignalRecording,
     SignalSource,
 )
-from backend.signals import acquisition, inference, integrity, schema, storage
-from backend.signals import features as feature_module
-from backend.signals import quality as quality_module
-from backend.signals.devices.base import DeviceUnavailable
 
 logger = logging.getLogger("painsense.signals")
 

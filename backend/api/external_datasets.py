@@ -21,6 +21,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from backend.api import jobs, schemas
+from backend.dependencies import AdminUser, DbSession, ResearchUser, client_ip
+from backend.sync import sources as connectors
+from backend.sync.sources.kaggle import credentials as kaggle_credentials
 from database.models import (
     Availability,
     Disease,
@@ -31,10 +34,7 @@ from database.models import (
     SyncEvent,
     SyncRun,
 )
-from backend.dependencies import AdminUser, DbSession, ResearchUser, client_ip
 from security import audit
-from backend.sync import sources as connectors
-from backend.sync.sources.kaggle import credentials as kaggle_credentials
 
 router = APIRouter(prefix="/api/external-datasets", tags=["external datasets"])
 

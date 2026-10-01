@@ -214,7 +214,7 @@ def profile_dataset(root: Path, *, dataset_id: str) -> dict[str, Any]:
         relative = str(path.relative_to(root))
         try:
             frame = read_table(path)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - a profile reports every unreadable file
             record = {"file": relative, "error": f"{type(exc).__name__}: {exc}"}
             (documents if path.suffix.lower() == ".json" else unreadable).append(record)
             continue
@@ -314,8 +314,8 @@ def to_markdown(profile: dict[str, Any]) -> str:
         ]
         if flagged:
             lines += [
-                "Columns indistinguishable from a uniform distribution over their own range "
-                f"(Kolmogorov-Smirnov, p > 0.05): {', '.join(f'`{n}`' for n in flagged)}.",
+                ("Columns indistinguishable from a uniform distribution over their own range "
+                f"(Kolmogorov-Smirnov, p > 0.05): {', '.join(f'`{n}`' for n in flagged)}."),
                 "",
             ]
     return "\n".join(lines)

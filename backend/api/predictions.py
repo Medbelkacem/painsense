@@ -8,6 +8,7 @@ from sqlalchemy import select
 from backend.ai import estimator, inputs
 from backend.api import schemas, serializers
 from backend.api.assessments import get_assessment
+from backend.dependencies import ClinicalUser, DbSession, ResearchUser, client_ip
 from database.models import (
     AssessmentAnatomicalSite,
     AssessmentMedication,
@@ -16,7 +17,6 @@ from database.models import (
     PainSiteRole,
     PhysiologicalMeasurement,
 )
-from backend.dependencies import ClinicalUser, DbSession, ResearchUser, client_ip
 from knowledge import rules
 from knowledge.context import FUNCTIONAL_DOMAINS
 from security import audit

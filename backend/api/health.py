@@ -7,9 +7,9 @@ from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.ai import features, model
-from database.session import engine
-from database.models import ModelVersion
 from backend.dependencies import DbSession
+from database.models import ModelVersion
+from database.session import engine
 
 router = APIRouter(prefix="/api/health", tags=["platform"])
 
@@ -76,7 +76,9 @@ def _database_check(db) -> dict:
     started = time.perf_counter()
     try:
         db.execute(text("SELECT 1"))
-        ready = inspect(engine).has_table("users")
+        # Inspected through the session's own connection: a second connection would queue
+        # behind the lock this one holds on SQLite.
+        ready = inspect(db.connection()).has_table("users")
     except SQLAlchemyError as exc:
         return {"ok": False, "detail": type(exc).__name__}
     return {

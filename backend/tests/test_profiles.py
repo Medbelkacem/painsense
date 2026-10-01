@@ -3,9 +3,9 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from backend.ai import confounders, metrics, population, quality, trajectory
+from backend.tests.test_api import CHEST_CASE, make_patient
 from knowledge import profiles, reference_ranges, rules, scales
 from knowledge.context import ClinicalContext
-from backend.tests.test_api import CHEST_CASE, make_patient
 
 
 def context(**overrides) -> ClinicalContext:

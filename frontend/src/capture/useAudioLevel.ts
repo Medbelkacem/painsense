@@ -35,7 +35,7 @@ const CLIP = 0.98;
 
 export function useAudioLevel(stream: MediaStream | null): AudioLevel {
   const [level, setLevel] = useState<AudioLevel>({
-    waveform: new Array(WAVEFORM_POINTS).fill(0),
+    waveform: Array.from({ length: WAVEFORM_POINTS }, () => 0),
     rms: 0,
     peak: 0,
     clipping: false,
@@ -47,7 +47,7 @@ export function useAudioLevel(stream: MediaStream | null): AudioLevel {
     const track = stream?.getAudioTracks()[0];
     if (!stream || !track) {
       setLevel({
-        waveform: new Array(WAVEFORM_POINTS).fill(0),
+        waveform: Array.from({ length: WAVEFORM_POINTS }, () => 0),
         rms: 0,
         peak: 0,
         clipping: false,

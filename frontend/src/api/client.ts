@@ -169,19 +169,33 @@ export async function login(email: string, password: string): Promise<TokenRespo
   return token;
 }
 
-/** Exchange the httpOnly refresh cookie for a new access token. */
-export async function refresh(): Promise<TokenResponse | null> {
-  try {
-    const token = await request<TokenResponse>('/api/auth/refresh', {
-      method: 'POST',
-      retryOnUnauthorised: false,
+let refreshing: Promise<TokenResponse | null> | null = null;
+
+/**
+ * Exchange the httpOnly refresh cookie for a new access token.
+ *
+ * One exchange at a time. A refresh token is single-use, and two callers racing for it
+ * (React mounting the session provider twice in development, or two expired requests
+ * firing together) would spend it once and then be signed out by the second attempt.
+ */
+export function refresh(): Promise<TokenResponse | null> {
+  if (refreshing) return refreshing;
+  refreshing = request<TokenResponse>('/api/auth/refresh', {
+    method: 'POST',
+    retryOnUnauthorised: false,
+  })
+    .then((token) => {
+      setSession(token);
+      return token;
+    })
+    .catch(() => {
+      setSession(null);
+      return null;
+    })
+    .finally(() => {
+      refreshing = null;
     });
-    setSession(token);
-    return token;
-  } catch {
-    setSession(null);
-    return null;
-  }
+  return refreshing;
 }
 
 export async function logout(): Promise<void> {

@@ -94,10 +94,10 @@ def validation_markdown(report: dict[str, Any]) -> str:
         "",
         f"Generated {report['generated_at']} by `dataset.pipeline validate`.",
         "",
-        "Every figure below is computed from the files on disk. No record was altered or "
+        ("Every figure below is computed from the files on disk. No record was altered or "
         "removed by validation: a value that cannot be true is reported and kept, because "
         "deciding whether an improbable reading is a transcription error or a genuinely "
-        "unusual patient is a clinical judgement.",
+        "unusual patient is a clinical judgement."),
         "",
         "## Summary",
         "",
@@ -134,8 +134,8 @@ def validation_markdown(report: dict[str, Any]) -> str:
         lines += [
             f"### `{source['dataset_id']}`",
             "",
-            f"{source['records']:,} record(s), {source['patients']:,} patient(s). "
-            f"{source['counts']['error']} error(s), {source['counts']['warning']} warning(s).",
+            (f"{source['records']:,} record(s), {source['patients']:,} patient(s). "
+            f"{source['counts']['error']} error(s), {source['counts']['warning']} warning(s)."),
             "",
         ]
         if source["issues"]:
@@ -153,10 +153,10 @@ def leakage_markdown(report: dict[str, Any]) -> str:
         "",
         f"Generated {report['generated_at']} by `dataset.pipeline validate`.",
         "",
-        "Two failures are checked separately. **Target leakage** is the target, or anything "
+        ("Two failures are checked separately. **Target leakage** is the target, or anything "
         "derived from it, reaching the model as an input. **Patient leakage** is one patient's "
         "records appearing on both sides of a train/test boundary, which turns a test score "
-        "into a measure of memorisation.",
+        "into a measure of memorisation."),
         "",
         "## Result",
         "",
@@ -168,17 +168,17 @@ def leakage_markdown(report: dict[str, Any]) -> str:
         "",
         "## How target leakage is detected",
         "",
-        "Two independent checks, because either alone is evadable. A name check rejects a "
+        ("Two independent checks, because either alone is evadable. A name check rejects a "
         "feature whose name matches a forbidden pattern. A correlation check rejects a feature "
         "whose Spearman correlation with the target reaches "
         f"{audit.get('correlation_threshold', 'n/a')}, which catches a derived target that has "
-        "been renamed to something innocuous and so passes the name check.",
+        "been renamed to something innocuous and so passes the name check."),
         "",
-        "Structurally, the target cannot reach the feature matrix in the first place: every "
+        ("Structurally, the target cannot reach the feature matrix in the first place: every "
         "field in the schema's `label` group is excluded from the candidate features. That "
         "group holds `self_reported_nrs`, `self_reported_vas`, `original_pain_score`, "
         "`original_pain_scale` and `pain_present`. The last matters most — it is derived from "
-        "the score, so it would otherwise pass as an ordinary clinical observation.",
+        "the score, so it would otherwise pass as an ordinary clinical observation."),
         "",
     ]
     if audit.get("forbidden_patterns"):
@@ -196,11 +196,11 @@ def leakage_markdown(report: dict[str, Any]) -> str:
     lines += [
         "## How patient leakage is prevented",
         "",
-        "The unit of split assignment is the patient, never the record. Patients are "
+        ("The unit of split assignment is the patient, never the record. Patients are "
         "stratified by their own mean label and then dealt into train, validation and test, "
         "so every assessment belonging to one patient lands in exactly one split. After "
         "assignment the split is audited: any patient found in more than one split is a "
-        "blocking finding.",
+        "blocking finding."),
         "",
     ]
     if audit.get("split_summary"):
@@ -224,12 +224,12 @@ def leakage_markdown(report: dict[str, Any]) -> str:
     lines += [
         "## Limits of these checks",
         "",
-        "The correlation check needs at least thirty rows carrying the target and only sees a "
+        ("The correlation check needs at least thirty rows carrying the target and only sees a "
         "monotone relationship; a feature encoding the target non-monotonically would pass it. "
         "A source with no subject identifier cannot be split safely at all, and is reported "
         "rather than guessed at. Neither check can detect leakage that happened before the "
         "data reached this pipeline, such as a published label that was itself derived from a "
-        "feature.",
+        "feature."),
         "",
     ]
     return "\n".join(lines)

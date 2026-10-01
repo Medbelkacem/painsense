@@ -262,7 +262,7 @@ container image.
 
 ```
 # Train the voice model on the acquired corpus
-python -m app.behaviour.training
+python -m backend.behaviour.training
 
 # Measure a clip
 POST /api/behaviour/patients/{id}/observations   clip, at_rest, retain_media

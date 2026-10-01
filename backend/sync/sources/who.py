@@ -19,7 +19,6 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from database.models import Granularity, SourceAccess
 from backend.sync import http
 from backend.sync.sources.base import (
     AGGREGATE_STATISTICS,
@@ -28,6 +27,7 @@ from backend.sync.sources.base import (
     RemoteDataset,
     Unavailable,
 )
+from database.models import Granularity, SourceAccess
 
 API = "https://ghoapi.azureedge.net/api"
 TERMS = "https://www.who.int/about/policies/publishing/copyright"

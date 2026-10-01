@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from backend.api import schemas, serializers
+from backend.dependencies import ClinicalUser, DbSession
 from database.models import (
     AssessmentStatus,
     PainAssessment,
@@ -13,7 +14,6 @@ from database.models import (
     PredictionAlert,
     SelfReport,
 )
-from backend.dependencies import CurrentUser, DbSession
 from knowledge import locations
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -24,17 +24,11 @@ RECENT_LIMIT = 8
 
 
 @router.get("", response_model=schemas.AnalyticsOut)
-def analytics(db: DbSession, user: CurrentUser) -> schemas.AnalyticsOut:
+def analytics(db: DbSession, user: ClinicalUser) -> schemas.AnalyticsOut:
     now = datetime.now(timezone.utc)
     start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     patients_total = db.scalar(select(func.count()).select_from(Patient)) or 0
-    patients_synthetic = (
-        db.scalar(
-            select(func.count()).select_from(Patient).where(Patient.is_synthetic.is_(True))
-        )
-        or 0
-    )
     assessments = list(db.scalars(select(PainAssessment).order_by(PainAssessment.created_at)))
     predictions = list(db.scalars(select(PainPrediction)))
     reports = {row.assessment_id: row.nrs for row in db.scalars(select(SelfReport))}
@@ -67,7 +61,6 @@ def analytics(db: DbSession, user: CurrentUser) -> schemas.AnalyticsOut:
 
     return schemas.AnalyticsOut(
         patients_total=patients_total,
-        patients_synthetic=patients_synthetic,
         assessments_total=len(assessments),
         assessments_today=sum(1 for row in assessments if row.created_at >= start_of_day),
         assessments_awaiting_validation=sum(

@@ -263,7 +263,7 @@ def anatomy_reference(path: Path) -> set[str] | None:
         return None
     try:
         return set(pd.read_parquet(path)["code"].astype("string").dropna())
-    except Exception:
+    except Exception:  # noqa: BLE001 - an unreadable reference means no reference, not a crash
         return None
 
 

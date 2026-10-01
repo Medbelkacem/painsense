@@ -5,9 +5,9 @@ from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas as pdf_canvas
 
+from backend.tests.test_api import make_assessment, make_patient
 from config import get_settings
 from database.models import MedicalDocument
-from backend.tests.test_api import make_assessment, make_patient
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"synthetic radiograph placeholder" * 8
 REPORT_TEXT = "Chest radiograph: no focal consolidation, no pneumothorax."

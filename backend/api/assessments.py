@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from backend.ai import estimator, inputs, model
 from backend.api import schemas, serializers
-from backend.api.patients import get_patient
+from backend.api.patients import get_patient, require_view
+from backend.dependencies import ClinicalUser, DbSession, ViewerUser, client_ip
 from database.models import (
     ADMIN_ROLES,
     AnatomicalStructure,
@@ -31,11 +32,11 @@ from database.models import (
     PainQuality,
     PainSiteRole,
     PhysiologicalMeasurement,
+    Role,
     SelfReport,
     Symptom,
     User,
 )
-from backend.dependencies import ClinicalUser, DbSession, client_ip
 from knowledge import anatomy, scales
 from knowledge import symptoms as symptoms_kb
 from knowledge.context import FUNCTIONAL_DOMAINS
@@ -70,6 +71,22 @@ def require_owner(assessment: PainAssessment, user: User) -> PainAssessment:
             detail="Only the clinician who recorded this assessment can change it",
         )
     return assessment
+
+
+def require_doctor(user: User) -> User:
+    if user.role is not Role.DOCTOR:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, detail="Only a doctor can validate an assessment"
+        )
+    return user
+
+
+def _set_duration(assessment: PainAssessment) -> None:
+    value, unit = assessment.duration_value, assessment.duration_unit
+    if value is None or unit is None:
+        assessment.duration_value = assessment.duration_unit = assessment.duration_hours = None
+        return
+    assessment.duration_hours = round(value * schemas.HOURS_PER_UNIT[unit], 4)
 
 
 def require_open(assessment: PainAssessment) -> PainAssessment:
@@ -374,6 +391,7 @@ def create_assessment(
         patient_age_months=patient.age_months_on(today),
         **scalar_fields,
     )
+    _set_duration(assessment)
     db.add(assessment)
     db.flush()
 
@@ -456,7 +474,9 @@ def _ledger_payload(assessment: PainAssessment) -> dict:
         "onset": assessment.onset.value,
         "pattern": assessment.pattern.value,
         "course": assessment.course.value,
-        "duration_hours": assessment.duration_hours,
+        "duration": serializers.duration_label(
+            assessment.duration_value, assessment.duration_unit
+        ),
         "radiates": assessment.radiates,
         "measurement": (
             {
@@ -478,7 +498,7 @@ def _ledger_payload(assessment: PainAssessment) -> dict:
 @router.get("", response_model=schemas.AssessmentPage)
 def list_assessments(
     db: DbSession,
-    user: ClinicalUser,
+    user: ViewerUser,
     patient_id: uuid.UUID | None = None,
     status_filter: Annotated[AssessmentStatus | None, Query(alias="status")] = None,
     mine_only: bool = False,
@@ -486,6 +506,11 @@ def list_assessments(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> schemas.AssessmentPage:
     filters = []
+    if user.role is Role.PATIENT:
+        # A patient account lists its own record whatever the query says.
+        patient_id = user.patient_id
+        if patient_id is None:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="No patient record is linked")
     if patient_id is not None:
         filters.append(PainAssessment.patient_id == patient_id)
     if status_filter is not None:
@@ -521,10 +546,38 @@ def _coverage(db: Session) -> float | None:
 
 @router.get("/{assessment_id}", response_model=schemas.AssessmentDetail)
 def read_assessment(
-    assessment_id: uuid.UUID, db: DbSession, user: ClinicalUser
+    assessment_id: uuid.UUID, db: DbSession, user: ViewerUser
 ) -> schemas.AssessmentDetail:
     assessment = get_assessment(db, assessment_id)
+    require_view(user, assessment.patient_id)
     return serializers.assessment_detail(db, assessment, _coverage(db))
+
+
+@router.delete("/{assessment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_assessment(
+    assessment_id: uuid.UUID, request: Request, db: DbSession, user: ClinicalUser
+) -> None:
+    assessment = require_owner(get_assessment(db, assessment_id), user)
+    if user.role is Role.NURSE:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, detail="A nurse cannot delete an assessment"
+        )
+    patient_code = assessment.patient.code
+    # Documents and camera observations belong to the patient and are kept; they are
+    # simply no longer filed under this assessment. Everything else cascades.
+    db.delete(assessment)
+    db.commit()
+    audit.record(
+        db,
+        event_type=audit.ASSESSMENT_DELETED,
+        actor_id=user.id,
+        actor_label=user.email,
+        resource="assessment",
+        resource_id=str(assessment_id),
+        client_ip=client_ip(request),
+        meta={"patient": patient_code},
+        ledger_payload={"assessment_id": str(assessment_id), "patient_code": patient_code},
+    )
 
 
 @router.patch("/{assessment_id}", response_model=schemas.AssessmentDetail)
@@ -555,6 +608,8 @@ def update_assessment(
     for field, value in changes.items():
         if field not in COLLECTION_FIELDS:
             setattr(assessment, field, value)
+    if "duration_value" in changes or "duration_unit" in changes:
+        _set_duration(assessment)
     db.commit()
     db.refresh(assessment)
 
@@ -628,6 +683,7 @@ def validate_assessment(
     user: ClinicalUser,
     payload: schemas.ReviewIn | None = None,
 ) -> schemas.AssessmentDetail:
+    require_doctor(user)
     assessment = require_open(require_owner(get_assessment(db, assessment_id), user))
     if assessment.prediction is None:
         raise HTTPException(

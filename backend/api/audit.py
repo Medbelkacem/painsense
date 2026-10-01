@@ -6,8 +6,8 @@ from fastapi import APIRouter, Query, Request, Response
 from sqlalchemy import func, select
 
 from backend.api import schemas
-from database.models import ADMIN_ROLES, AuditLog, Role
 from backend.dependencies import AuditUser, CurrentUser, DbSession, client_ip
+from database.models import ADMIN_ROLES, AuditLog, Role
 from security import audit
 
 router = APIRouter(prefix="/api/audit", tags=["audit"])

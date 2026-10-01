@@ -10,9 +10,9 @@ import json
 
 import pytest
 
-from database.models import Granularity, LicenceVerdict, SourceAccess
 from backend.sync import http, licensing
 from backend.sync.sources import cdc, github, huggingface, kaggle, physionet, who
+from database.models import Granularity, LicenceVerdict, SourceAccess
 
 # --- recorded fragments ----------------------------------------------------------------
 

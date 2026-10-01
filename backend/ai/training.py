@@ -392,6 +392,7 @@ def train(
         "scenario": _subgroups(test_scenarios, y_test, predicted),
         "archetype": _subgroups(test_archetypes, y_test, predicted),
     }
+    profile["interval_coverage"] = metrics.interval_coverage
     importance = _feature_importance(point, x_validation, seed)
 
     dataset_version = dataset.version

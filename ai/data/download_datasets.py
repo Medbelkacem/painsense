@@ -19,8 +19,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
-from backend.sync import licensing  # noqa: E402
-from backend.sync import sources as connectors  # noqa: E402
+from backend.sync import licensing
+from backend.sync import sources as connectors
 
 #: The sources the burn work cares about. Everything else a deployment has configured is
 #: left alone; this is a focused report, not a full synchronisation.

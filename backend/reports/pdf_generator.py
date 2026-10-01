@@ -9,6 +9,7 @@ from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import (
     KeepTogether,
     Paragraph,
@@ -21,9 +22,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.api import serializers
-from database.models import MedicalDocument, PainAssessment
+from database.models import MedicalDocument, PainAssessment, User
 from knowledge import confounders as confounder_kb
-from knowledge import diseases, factors, qualities, symptoms
+from knowledge import consistency, diseases, factors, qualities, symptoms
 
 INK = colors.HexColor("#0f172a")
 MUTED = colors.HexColor("#5b6b7f")
@@ -32,6 +33,7 @@ RULE = colors.HexColor("#d7e1ea")
 SURFACE = colors.HexColor("#f4f8fb")
 WARNING = colors.HexColor("#b45309")
 ALERT = colors.HexColor("#b91c1c")
+ALERT_WASH = colors.HexColor("#fdf2f2")
 
 BAND_COLOURS = {
     "NONE": colors.HexColor("#0f766e"),
@@ -41,6 +43,7 @@ BAND_COLOURS = {
     "EXTREME": colors.HexColor("#b91c1c"),
 }
 
+FOOTER = "AI-assisted prototype. Not a medical diagnosis and not a substitute for clinical judgement."
 DISCLAIMER = (
     "This report was produced by an AI-assisted research and educational prototype. It does "
     "not constitute a medical diagnosis and does not replace professional clinical "
@@ -49,6 +52,10 @@ DISCLAIMER = (
     "used as an input to the model."
 )
 DISAGREEMENT_THRESHOLD = 2.0
+NONE_RECORDED = "None recorded"
+
+MARGIN = 18 * mm
+LABEL_WIDTH = 44 * mm
 
 
 def _styles() -> dict:
@@ -75,6 +82,14 @@ def _styles() -> dict:
             spaceBefore=12,
             spaceAfter=5,
         ),
+        "label": ParagraphStyle(
+            "label",
+            parent=base["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=8.6,
+            leading=12,
+            textColor=MUTED,
+        ),
         "body": ParagraphStyle(
             "body", parent=base["Normal"], fontSize=9.2, leading=13, textColor=INK
         ),
@@ -84,29 +99,73 @@ def _styles() -> dict:
         "notice": ParagraphStyle(
             "notice", parent=base["Normal"], fontSize=8.2, leading=11.5, textColor=WARNING
         ),
+        "alert": ParagraphStyle(
+            "alert",
+            parent=base["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=9.5,
+            leading=13,
+            textColor=ALERT,
+        ),
     }
 
 
-def _cell(value, style: ParagraphStyle) -> Paragraph:
-    return Paragraph(escape(str(value)), style)
+class _NumberedCanvas(pdfcanvas.Canvas):
+    """Draws the footer once the page count is known, and after the body of each page, so
+    the running text of the report comes before "Page 1 of 3" rather than after it."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pages = []
+
+    def showPage(self):
+        self._pages.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        total = len(self._pages)
+        for state in self._pages:
+            self.__dict__.update(state)
+            self._footer(total)
+            super().showPage()
+        super().save()
+
+    def _footer(self, total: int) -> None:
+        self.saveState()
+        self.setStrokeColor(RULE)
+        self.setLineWidth(0.4)
+        self.line(MARGIN, 16 * mm, A4[0] - MARGIN, 16 * mm)
+        self.setFont("Helvetica", 6.8)
+        self.setFillColor(MUTED)
+        self.drawString(MARGIN, 11.5 * mm, FOOTER)
+        self.drawRightString(A4[0] - MARGIN, 11.5 * mm, f"Page {self._pageNumber} of {total}")
+        self.restoreState()
 
 
-def _table(rows: list[list], widths: list[float], style: ParagraphStyle) -> Table:
-    wrapped = [[row[0], *(_cell(value, style) for value in row[1:])] for row in rows]
-    table = Table(wrapped, colWidths=widths, hAlign="LEFT")
+def _text(value) -> str:
+    value = "" if value is None else str(value).strip()
+    return value or NONE_RECORDED
+
+
+def _pairs(rows: list[tuple], style: dict, width: float) -> Table:
+    """A label column and a value column, each cell its own paragraph so a long value wraps
+    under itself and never runs into the label beside it."""
+    cells = [
+        [Paragraph(escape(str(label)), style["label"]), Paragraph(escape(_text(value)), style["body"])]
+        for label, value in rows
+    ]
+    table = Table(cells, colWidths=[LABEL_WIDTH, width - LABEL_WIDTH], hAlign="LEFT")
     table.setStyle(
         TableStyle(
             [
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("FONTNAME", (1, 0), (-1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8.6),
-                ("TEXTCOLOR", (0, 0), (0, -1), MUTED),
-                ("TEXTCOLOR", (1, 0), (-1, -1), INK),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LINEBELOW", (0, 0), (-1, -2), 0.4, RULE),
+                ("LINEAFTER", (0, 0), (0, -1), 0.4, RULE),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("LEFTPADDING", (0, 0), (0, -1), 0),
+                ("RIGHTPADDING", (0, 0), (0, -1), 8),
+                ("LEFTPADDING", (1, 0), (1, -1), 10),
             ]
         )
     )
@@ -218,28 +277,16 @@ def _trend(points: list, width: float) -> Drawing | None:
 
 def _labels(codes, catalogue) -> str:
     resolved = [catalogue[code].label if code in catalogue else code for code in sorted(codes)]
-    return ", ".join(resolved) if resolved else "None recorded"
+    return ", ".join(resolved)
 
 
-def _footer(canvas, document, synthetic: bool) -> None:
-    canvas.saveState()
-    if synthetic:
-        canvas.setFillColor(WARNING)
-        canvas.setFont("Helvetica-Bold", 6.6)
-        canvas.drawRightString(A4[0] - 18 * mm, 18 * mm, "SYNTHETIC RECORD")
+def _with_note(coded: str, note: str | None) -> str:
+    parts = [part for part in (coded, (note or "").strip()) if part]
+    return "; ".join(parts)
 
-    canvas.setStrokeColor(RULE)
-    canvas.setLineWidth(0.4)
-    canvas.line(18 * mm, 16 * mm, A4[0] - 18 * mm, 16 * mm)
-    canvas.setFont("Helvetica", 6.6)
-    canvas.setFillColor(MUTED)
-    canvas.drawString(
-        18 * mm,
-        11.5 * mm,
-        "AI-assisted prototype. Not a medical diagnosis and not a substitute for clinical judgement.",
-    )
-    canvas.drawRightString(A4[0] - 18 * mm, 11.5 * mm, f"Page {document.page}")
-    canvas.restoreState()
+
+def _stamp(moment: datetime) -> str:
+    return moment.strftime("%d %B %Y at %H:%M UTC")
 
 
 def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
@@ -250,12 +297,12 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
     document = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        leftMargin=18 * mm,
-        rightMargin=18 * mm,
+        leftMargin=MARGIN,
+        rightMargin=MARGIN,
         topMargin=16 * mm,
-        bottomMargin=22 * mm,
+        bottomMargin=24 * mm,
         title=f"Pain assessment {assessment.patient.code}",
-        author="Pain Score",
+        author="PainSense",
     )
     width = document.width
 
@@ -265,171 +312,220 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
     measurement = assessment.measurement
     self_report = assessment.self_report
     history = serializers.history(db, patient)
+    findings = serializers.assessment_findings(assessment)
+    validator = db.get(User, assessment.validated_by) if assessment.validated_by else None
 
     story: list = [
         Paragraph("Pain assessment report", style["title"]),
         Paragraph(
-            f"Patient {patient.code} &nbsp;·&nbsp; assessed "
-            f"{assessment.created_at.strftime('%d %B %Y at %H:%M UTC')} &nbsp;·&nbsp; "
-            f"status {assessment.status.value.lower()}",
+            f"Patient {patient.code} &nbsp;·&nbsp; assessed {_stamp(assessment.created_at)} "
+            f"&nbsp;·&nbsp; status {assessment.status.value.lower()}",
             style["subtitle"],
         ),
     ]
 
-    if patient.is_synthetic:
-        story.append(
-            Paragraph(
-                "SYNTHETIC RECORD. This patient does not exist and the record contains no "
-                "clinical data about any person.",
-                style["notice"],
+    urgent = [f for f in findings if f.level == consistency.URGENT]
+    if urgent:
+        banner = Table(
+            [[Paragraph("Requires urgent clinical review", style["alert"])]]
+            + [[Paragraph(escape(f.message), style["body"])] for f in urgent],
+            colWidths=[width],
+            hAlign="LEFT",
+        )
+        banner.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), ALERT_WASH),
+                    ("BOX", (0, 0), (-1, -1), 0.8, ALERT),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
             )
         )
-        story.append(Spacer(1, 6))
+        story += [banner, Spacer(1, 6)]
 
+    emergency = ""
+    if identity and identity.emergency_contact_name:
+        emergency = " ".join(
+            filter(None, [identity.emergency_contact_name, identity.emergency_contact_phone])
+        )
+    age = assessment.patient_age_years
     story.append(Paragraph("Patient", style["section"]))
     story.append(
-        _table(
+        _pairs(
             [
-                ["Name", f"{identity.given_name} {identity.family_name}" if identity else "—"],
-                ["Internal identifier", patient.code],
-                [
+                ("Name", f"{identity.given_name} {identity.family_name}" if identity else ""),
+                ("Internal identifier", patient.code),
+                (
                     "Age and sex",
-                    f"{assessment.patient_age_years or '—'} years, {patient.sex.value}",
-                ],
-                ["Ward", patient.ward or "—"],
-                ["Telephone", (identity.phone if identity and identity.phone else "—")],
-                [
-                    "Emergency contact",
-                    (
-                        f"{identity.emergency_contact_name} {identity.emergency_contact_phone or ''}".strip()
-                        if identity and identity.emergency_contact_name
-                        else "—"
-                    ),
-                ],
-                ["Smoking status", patient.smoking_status.value.lower()],
+                    f"{age} {'year' if age == 1 else 'years'}, {patient.sex.value}"
+                    if age is not None
+                    else patient.sex.value,
+                ),
+                ("Ward", patient.ward),
+                ("Telephone", identity.phone if identity else None),
+                ("Emergency contact", emergency),
+                ("Smoking status", patient.smoking_status.value.capitalize()),
             ],
-            [42 * mm, width - 42 * mm],
-            style["body"],
+            style,
+            width,
         )
     )
 
+    if assessment.validated_at:
+        validated = f"Validated on {_stamp(assessment.validated_at)}"
+        if validator is not None:
+            validated = f"Validated by {validator.display_name} on {_stamp(assessment.validated_at)}"
+    else:
+        validated = "Not validated"
     story.append(Paragraph("Assessing clinician", style["section"]))
     story.append(
-        _table(
+        _pairs(
             [
-                ["Name", doctor.display_name],
-                ["Speciality", doctor.speciality or "—"],
-                ["Registration", doctor.registration_number or "—"],
-                [
-                    "Validated",
-                    assessment.validated_at.strftime("%d %B %Y at %H:%M UTC")
-                    if assessment.validated_at
-                    else "Not validated",
-                ],
+                ("Name", doctor.display_name),
+                ("Speciality", doctor.speciality),
+                ("Registration number", doctor.registration_number),
+                ("Validated", validated),
             ],
-            [42 * mm, width - 42 * mm],
-            style["body"],
+            style,
+            width,
         )
     )
 
-    story.append(Paragraph("Pain description", style["section"]))
-    duration = (
-        f"{assessment.duration_hours:g} hours" if assessment.duration_hours is not None else "—"
+    timing = ", ".join(
+        label
+        for label, flag in (
+            ("morning", assessment.morning_pain),
+            ("afternoon", assessment.afternoon_pain),
+            ("evening", assessment.evening_pain),
+            ("night", assessment.night_pain),
+            ("after activity", assessment.pain_after_activity),
+            ("at rest", assessment.pain_at_rest),
+        )
+        if flag
     )
+    story.append(Paragraph("Pain description", style["section"]))
     story.append(
-        _table(
+        _pairs(
             [
-                ["Site", ", ".join(serializers.location_labels(assessment)) or "None recorded"],
-                [
+                ("Site", ", ".join(serializers.location_labels(assessment))),
+                (
                     "Structures",
                     ", ".join(serializers.structure_labels(assessment))
                     or "None localised on the anatomical model",
-                ],
-                [
+                ),
+                (
                     "Character",
-                    _labels(
-                        [row.quality_code for row in assessment.qualities], qualities.BY_CODE
-                    ),
-                ],
-                ["Onset", assessment.onset.value.lower()],
-                ["Duration", duration],
-                ["Pattern", assessment.pattern.value.lower()],
-                ["Course", assessment.course.value.lower()],
-                [
+                    _labels([row.quality_code for row in assessment.qualities], qualities.BY_CODE),
+                ),
+                ("Onset", assessment.onset.value.capitalize()),
+                (
+                    "Duration",
+                    serializers.duration_label(assessment.duration_value, assessment.duration_unit),
+                ),
+                ("Pattern", assessment.pattern.value.capitalize()),
+                ("Course", assessment.course.value.capitalize()),
+                (
                     "Radiation",
                     (assessment.radiation_description or "Reported, not described")
                     if assessment.radiates
                     else "None reported",
-                ],
-                [
-                    "Timing",
-                    ", ".join(
-                        label
-                        for label, flag in (
-                            ("night", assessment.night_pain),
-                            ("morning", assessment.morning_pain),
-                            ("after activity", assessment.pain_after_activity),
-                            ("at rest", assessment.pain_at_rest),
-                        )
-                        if flag
-                    )
-                    or "No particular timing recorded",
-                ],
+                ),
+                ("Timing", timing or "No particular timing recorded"),
             ],
-            [42 * mm, width - 42 * mm],
-            style["body"],
+            style,
+            width,
         )
     )
 
     aggravating = [
         row.factor_code
         for row in assessment.factors
-        if factors.BY_CODE.get(row.factor_code, None)
+        if factors.BY_CODE.get(row.factor_code)
         and factors.BY_CODE[row.factor_code].kind == factors.AGGRAVATING
     ]
     relieving = [
         row.factor_code
         for row in assessment.factors
-        if factors.BY_CODE.get(row.factor_code, None)
+        if factors.BY_CODE.get(row.factor_code)
         and factors.BY_CODE[row.factor_code].kind == factors.RELIEVING
     ]
     story.append(Paragraph("Symptoms, factors and context", style["section"]))
     story.append(
-        _table(
+        _pairs(
             [
-                [
+                (
                     "Associated symptoms",
-                    _labels(
-                        [row.symptom_code for row in assessment.symptoms], symptoms.BY_CODE
+                    _with_note(
+                        _labels([row.symptom_code for row in assessment.symptoms], symptoms.BY_CODE),
+                        assessment.symptoms_note,
                     ),
-                ],
-                ["Worse with", _labels(aggravating, factors.BY_CODE)],
-                ["Better with", _labels(relieving, factors.BY_CODE)],
-                [
+                ),
+                (
+                    "Worse with",
+                    _with_note(_labels(aggravating, factors.BY_CODE), assessment.aggravating_note),
+                ),
+                (
+                    "Better with",
+                    _with_note(_labels(relieving, factors.BY_CODE), assessment.relieving_note),
+                ),
+                (
                     "Recorded context",
                     _labels(
                         [row.confounder_code for row in assessment.confounders],
                         confounder_kb.BY_CODE,
                     ),
-                ],
-                [
+                ),
+                (
                     "Chronic conditions",
                     _labels([row.disease_code for row in patient.conditions], diseases.BY_CODE),
-                ],
-                [
+                ),
+                (
                     "Current medication",
                     ", ".join(
                         " ".join(filter(None, [row.name, row.dose, row.frequency]))
                         for row in patient.medications
-                    )
-                    or "None recorded",
-                ],
-                ["Allergies", patient.allergies or "None recorded"],
-                ["Relevant history", patient.medical_history or "None recorded"],
-                ["Previous surgery", patient.previous_surgeries or "None recorded"],
+                    ),
+                ),
+                ("Allergies", patient.allergies),
+                ("Relevant history", patient.medical_history),
+                ("Previous surgery", patient.previous_surgeries),
             ],
-            [42 * mm, width - 42 * mm],
-            style["body"],
+            style,
+            width,
+        )
+    )
+
+    warnings = [f for f in findings if f.level != consistency.URGENT]
+    if warnings:
+        story.append(Paragraph("Consistency checks", style["section"]))
+        for finding in warnings:
+            story.append(Paragraph(escape(finding.message), style["notice"]))
+            story.append(Spacer(1, 2))
+
+    story.append(Paragraph("Self-reported intensity", style["section"]))
+    story.append(
+        _pairs(
+            [
+                (
+                    "Patient-reported score",
+                    f"{self_report.nrs:g} / 10 on the {self_report.scale_code} scale"
+                    if self_report
+                    else "Not recorded",
+                ),
+                ("Note", self_report.note if self_report else None),
+            ],
+            style,
+            width,
+        )
+    )
+    story.append(
+        Paragraph(
+            "The patient's own score is recorded for comparison only. It is never an input "
+            "to the model.",
+            style["small"],
         )
     )
 
@@ -439,49 +535,35 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
             Paragraph("No measurements were recorded for this assessment.", style["body"])
         )
     else:
+
+        def reading(value, unit: str) -> str:
+            return f"{value:g} {unit}" if value is not None else ""
+
         story.append(
-            _table(
+            _pairs(
                 [
-                    ["Recorded at", measurement.recorded_at.strftime("%d %B %Y at %H:%M UTC")],
-                    ["Heart rate", f"{measurement.hr:g} beats/min" if measurement.hr else "—"],
-                    [
-                        "Respiratory rate",
-                        f"{measurement.resp_rate:g} breaths/min"
-                        if measurement.resp_rate
-                        else "—",
-                    ],
-                    [
+                    ("Recorded at", _stamp(measurement.recorded_at)),
+                    ("Heart rate", reading(measurement.hr, "beats/min")),
+                    ("Respiratory rate", reading(measurement.resp_rate, "breaths/min")),
+                    (
                         "Blood pressure",
                         f"{measurement.sbp:g}/{measurement.dbp:g} mmHg"
                         if measurement.sbp and measurement.dbp
-                        else "—",
-                    ],
-                    [
-                        "Oxygen saturation",
-                        f"{measurement.spo2:g} %" if measurement.spo2 else "—",
-                    ],
-                    [
-                        "Temperature",
-                        f"{measurement.temperature_c:g} °C"
-                        if measurement.temperature_c
-                        else "—",
-                    ],
-                    [
-                        "Blood glucose",
-                        f"{measurement.glucose_mmol:g} mmol/L"
-                        if measurement.glucose_mmol
-                        else "—",
-                    ],
-                    [
+                        else "",
+                    ),
+                    ("Oxygen saturation", reading(measurement.spo2, "%")),
+                    ("Temperature", reading(measurement.temperature_c, "°C")),
+                    ("Blood glucose", reading(measurement.glucose_mmol, "mmol/L")),
+                    (
                         "Weight, height, BMI",
                         f"{measurement.weight_kg:g} kg, {measurement.height_cm:g} cm, "
                         f"BMI {measurement.bmi}"
                         if measurement.bmi
-                        else "—",
-                    ],
+                        else "",
+                    ),
                 ],
-                [42 * mm, width - 42 * mm],
-                style["body"],
+                style,
+                width,
             )
         )
 
@@ -497,16 +579,16 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
         story.append(Paragraph("No documents attached to this assessment.", style["body"]))
     else:
         story.append(
-            _table(
+            _pairs(
                 [
-                    [
-                        row.kind.value,
-                        f"{row.original_filename} — {row.findings or 'no findings entered'}",
-                    ]
+                    (
+                        row.kind.value.replace("_", " ").capitalize(),
+                        f"{row.original_filename}: {row.findings or 'no findings entered'}",
+                    )
                     for row in documents
                 ],
-                [42 * mm, width - 42 * mm],
-                style["body"],
+                style,
+                width,
             )
         )
 
@@ -529,31 +611,33 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
             )
         )
         story.append(Spacer(1, 6))
-        rows = [
-            [
-                "Estimated pain",
-                f"{prediction.estimated_pain:.1f} / 10 ({prediction.band.lower()})",
-            ],
-            [
-                "Uncertainty interval",
-                (
-                    f"{prediction.interval_low:.1f} to {prediction.interval_high:.1f} "
-                    "(10th to 90th model quantile)"
-                ),
-            ],
-            [
-                "Patient-reported score",
-                f"{self_report.nrs:.0f} / 10" if self_report else "Not recorded",
-            ],
-            [
-                "Clinical priority indicator",
-                f"{prediction.priority_score:.1f} / 10",
-            ],
-            ["Data quality", prediction.data_quality.value.lower()],
-            ["Model", prediction.model_version or "—"],
-            ["Training data", prediction.dataset_version or "—"],
-        ]
-        story.append(_table(rows, [42 * mm, width - 42 * mm], style["body"]))
+        story.append(
+            _pairs(
+                [
+                    (
+                        "Estimated pain",
+                        f"{prediction.estimated_pain:.1f} / 10 ({prediction.band.lower()})",
+                    ),
+                    (
+                        "Uncertainty interval",
+                        (
+                            f"{prediction.interval_low:.1f} to {prediction.interval_high:.1f} "
+                            "(10th to 90th model quantile)"
+                        ),
+                    ),
+                    (
+                        "Patient-reported score",
+                        f"{self_report.nrs:.0f} / 10" if self_report else "Not recorded",
+                    ),
+                    ("Clinical priority indicator", f"{prediction.priority_score:.1f} / 10"),
+                    ("Data quality", prediction.data_quality.value.capitalize()),
+                    ("Model", prediction.model_version),
+                    ("Training data", prediction.dataset_version),
+                ],
+                style,
+                width,
+            )
+        )
 
         if self_report is not None and prediction.estimated_pain is not None:
             gap = prediction.estimated_pain - self_report.nrs
@@ -562,22 +646,19 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
                 story.append(
                     Paragraph(
                         f"The estimate and the patient's own score differ by {abs(gap):.1f} "
-                        f"points. Self-report remains a legitimate clinical reference and the "
-                        f"platform does not assume the model is the more accurate of the two.",
+                        "points. Self-report remains a legitimate clinical reference and the "
+                        "platform does not assume the model is the more accurate of the two.",
                         style["notice"],
                     )
                 )
 
         story.append(Paragraph("What the priority indicator is made of", style["section"]))
         story.append(
-            _table(
-                [
-                    [f"+{factor['points']:g}", factor["label"]]
-                    for factor in prediction.priority_factors
-                ]
-                or [["—", "No contributing factors recorded"]],
-                [16 * mm, width - 16 * mm],
-                style["body"],
+            _pairs(
+                [(f"+{factor['points']:g}", factor["label"]) for factor in prediction.priority_factors]
+                or [("", "No contributing factors recorded")],
+                style,
+                width,
             )
         )
         story.append(
@@ -590,17 +671,17 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
 
         story.append(Paragraph("Model contributions", style["section"]))
         story.append(
-            _table(
+            _pairs(
                 [
-                    [
+                    (
                         f"{row.contribution:+.2f}",
-                        f"{row.label} — {'raises' if row.contribution > 0 else 'lowers'} the estimate",
-                    ]
+                        f"{row.label}: {'raises' if row.contribution > 0 else 'lowers'} the estimate",
+                    )
                     for row in sorted(prediction.contributions, key=lambda row: row.rank)
                 ]
-                or [["—", "No contributions recorded"]],
-                [16 * mm, width - 16 * mm],
-                style["body"],
+                or [("", "No contributions recorded")],
+                style,
+                width,
             )
         )
         story.append(
@@ -613,23 +694,21 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
 
         story.append(Paragraph("Potentially compatible categories", style["section"]))
         story.append(
-            _table(
+            _pairs(
                 [
-                    [
+                    (
                         f"{row.score:.2f}",
                         (
                             f"{serializers.category_out(row).label}. Present: "
                             f"{', '.join(row.matched) or 'none'}. Not recorded: "
                             f"{', '.join(row.missing) or 'none'}."
                         ),
-                    ]
-                    for row in sorted(
-                        prediction.categories, key=lambda row: row.score, reverse=True
                     )
+                    for row in sorted(prediction.categories, key=lambda row: row.score, reverse=True)
                 ]
-                or [["—", "No category reached the reporting threshold"]],
-                [16 * mm, width - 16 * mm],
-                style["body"],
+                or [("", "No category reached the reporting threshold")],
+                style,
+                width,
             )
         )
         story.append(
@@ -643,9 +722,9 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
         if prediction.confounder_notes:
             story.append(Paragraph("Context affecting the measured values", style["section"]))
             story.append(
-                _table(
+                _pairs(
                     [
-                        [
+                        (
                             note["label"],
                             f"{note['explanation']} "
                             + (
@@ -653,11 +732,11 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
                                 if note["vitals_deranged"]
                                 else "No affected value is outside its reference range."
                             ),
-                        ]
+                        )
                         for note in prediction.confounder_notes
                     ],
-                    [38 * mm, width - 38 * mm],
-                    style["body"],
+                    style,
+                    width,
                 )
             )
 
@@ -665,32 +744,31 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
             story.append(Paragraph("Clinical alerts", style["section"]))
             alert_rows = [
                 [
-                    row.severity,
-                    _cell(
-                        f"{row.label}. {row.advice}"
-                        + (
-                            " Recorded context that can also explain this: "
-                            f"{', '.join(row.context_notes)}."
-                            if row.context_notes
-                            else ""
+                    Paragraph(row.severity, style["alert"]),
+                    Paragraph(
+                        escape(
+                            f"{row.label}. {row.advice}"
+                            + (
+                                " Recorded context that can also explain this: "
+                                f"{', '.join(row.context_notes)}."
+                                if row.context_notes
+                                else ""
+                            )
                         ),
                         style["body"],
                     ),
                 ]
                 for row in prediction.alerts
             ]
-            table = Table(alert_rows, colWidths=[20 * mm, width - 20 * mm], hAlign="LEFT")
+            table = Table(alert_rows, colWidths=[22 * mm, width - 22 * mm], hAlign="LEFT")
             table.setStyle(
                 TableStyle(
                     [
-                        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                        ("FONTSIZE", (0, 0), (-1, -1), 8.4),
-                        ("TEXTCOLOR", (0, 0), (0, -1), ALERT),
                         ("VALIGN", (0, 0), (-1, -1), "TOP"),
                         ("BACKGROUND", (0, 0), (-1, -1), SURFACE),
                         ("TOPPADDING", (0, 0), (-1, -1), 5),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
                     ]
                 )
             )
@@ -706,29 +784,19 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
         if prediction.missing_fields or prediction.quality_issues:
             story.append(Paragraph("Data quality", style["section"]))
             story.append(
-                _table(
+                _pairs(
                     [
-                        ["Not recorded", ", ".join(prediction.missing_fields) or "—"],
-                        [
-                            "Inconsistencies",
-                            " ".join(prediction.quality_issues) or "None found",
-                        ],
+                        ("Not recorded", ", ".join(prediction.missing_fields)),
+                        ("Inconsistencies", " ".join(prediction.quality_issues) or "None found"),
                     ],
-                    [38 * mm, width - 38 * mm],
-                    style["body"],
+                    style,
+                    width,
                 )
             )
 
     chart = _trend(history.points, width)
     if chart is not None:
-        story.append(
-            KeepTogether(
-                [
-                    Paragraph("Pain over time", style["section"]),
-                    chart,
-                ]
-            )
-        )
+        story.append(KeepTogether([Paragraph("Pain over time", style["section"]), chart]))
         story.append(
             Paragraph(
                 f"{len(history.points)} assessments on file. Trend {history.trend.lower()}"
@@ -746,7 +814,7 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
         for note in sorted(assessment.notes, key=lambda row: row.created_at):
             story.append(
                 Paragraph(
-                    f"<b>{note.created_at.strftime('%d %b %Y %H:%M')}</b> — {escape(note.body)}",
+                    f"<b>{note.created_at.strftime('%d %b %Y %H:%M')}</b> {escape(note.body)}",
                     style["body"],
                 )
             )
@@ -760,7 +828,7 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
                 Paragraph(DISCLAIMER, style["small"]),
                 Spacer(1, 4),
                 Paragraph(
-                    f"Report generated {datetime.now(timezone.utc).strftime('%d %B %Y at %H:%M UTC')} "
+                    f"Report generated {_stamp(datetime.now(timezone.utc))} "
                     f"· reference {uuid.uuid4().hex[:12]}",
                     style["small"],
                 ),
@@ -768,8 +836,5 @@ def build_report(db: Session, assessment: PainAssessment, doctor) -> bytes:
         )
     )
 
-    def draw(canvas, doc):
-        _footer(canvas, doc, patient.is_synthetic)
-
-    document.build(story, onFirstPage=draw, onLaterPages=draw)
+    document.build(story, canvasmaker=_NumberedCanvas)
     return buffer.getvalue()

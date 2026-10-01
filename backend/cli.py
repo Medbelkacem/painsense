@@ -3,9 +3,9 @@ import sys
 
 from sqlalchemy import inspect, select
 
-from database.session import SessionLocal, engine
 from database.models import Role, User
 from database.seed import seed_reference_data
+from database.session import SessionLocal, engine
 from security import authentication as auth
 
 MINIMUM_PASSWORD_LENGTH = 12
@@ -48,6 +48,30 @@ def bootstrap(arguments: argparse.Namespace) -> None:
         db.commit()
     role = "administrator" if arguments.admin else "doctor"
     print(f"created {role} account for {email}")
+
+
+def train(arguments: argparse.Namespace) -> None:
+    """Fit the pain model on the newest generated dataset and make it the active one.
+
+    An empty database has no registered model, and the estimator refuses rather than
+    guesses until one exists. Generate a dataset with scripts/generate_dataset.py first.
+    """
+    from pathlib import Path as _Path
+
+    from backend.ai import training
+
+    _require_schema()
+    try:
+        with SessionLocal() as db:
+            row = training.train(
+                db,
+                dataset_path=_Path(arguments.dataset) if arguments.dataset else None,
+                seed=arguments.seed,
+                cv_folds=arguments.cv_folds,
+            )
+    except training.NoDataset as exc:
+        sys.exit(f"Model not trained: {exc}")
+    print(f"registered and activated {row.version}: MAE {row.mae}, n_test {row.n_test}")
 
 
 def sync(arguments: argparse.Namespace) -> None:
@@ -172,6 +196,12 @@ def main() -> None:
     create.add_argument("--admin", action="store_true", default=True)
     create.add_argument("--doctor", dest="admin", action="store_false")
     create.set_defaults(handler=bootstrap)
+
+    fit = commands.add_parser("train", help="fit and activate the pain model")
+    fit.add_argument("--dataset", default=None, help="a generated dataset; default: the newest")
+    fit.add_argument("--seed", type=int, default=0)
+    fit.add_argument("--cv-folds", type=int, default=5)
+    fit.set_defaults(handler=train)
 
     run = commands.add_parser(
         "sync", help="synchronise external dataset publishers now"

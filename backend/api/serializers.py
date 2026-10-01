@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -10,11 +11,64 @@ from database.models import (
     PainPrediction,
     Patient,
     PredictionCategory,
+    User,
 )
-from knowledge import anatomy, causes, locations, medications, profiles, rules, scales
+from knowledge import (
+    anatomy,
+    causes,
+    consistency,
+    locations,
+    medications,
+    profiles,
+    rules,
+    scales,
+)
 from security import encryption
 
 TREND_THRESHOLD = 0.5
+
+DURATION_WORDS = {
+    "minutes": ("minute", "minutes"),
+    "hours": ("hour", "hours"),
+    "days": ("day", "days"),
+    "months": ("month", "months"),
+    "years": ("year", "years"),
+}
+
+
+def duration_label(value: float | None, unit: str | None) -> str:
+    if value is None or unit not in DURATION_WORDS:
+        return "Not recorded"
+    singular, plural = DURATION_WORDS[unit]
+    return f"{value:g} {singular if value == 1 else plural}"
+
+
+def finding_out(finding: consistency.Finding) -> schemas.FindingOut:
+    return schemas.FindingOut(code=finding.code, level=finding.level, message=finding.message)
+
+
+def patient_findings(patient: Patient, medication_classes=()) -> list[consistency.Finding]:
+    return consistency.patient_findings(
+        age=patient.age_on(datetime.now(timezone.utc).date()),
+        ward=patient.ward,
+        conditions={row.disease_code for row in patient.conditions},
+        medication_names=[row.name for row in patient.medications],
+        medication_classes=medication_classes,
+    )
+
+
+def assessment_findings(assessment: PainAssessment) -> list[consistency.Finding]:
+    measurement = assessment.measurement
+    found = patient_findings(
+        assessment.patient, {row.class_code for row in assessment.medications}
+    )
+    found += consistency.assessment_findings(
+        symptoms={row.symptom_code for row in assessment.symptoms},
+        location_codes=[row.location_code for row in assessment.locations],
+        onset=assessment.onset.value,
+        temperature_c=measurement.temperature_c if measurement else None,
+    )
+    return found
 
 
 def identity_aad(code: str) -> bytes:
@@ -92,6 +146,7 @@ def patient_detail(db: Session, patient: Patient) -> schemas.PatientDetail:
     return schemas.PatientDetail(
         **summary.model_dump(),
         identity=open_identity(patient),
+        age_years=patient.age_years,
         birth_date=patient.birth_date,
         smoking_status=patient.smoking_status,
         medical_history=patient.medical_history,
@@ -101,6 +156,7 @@ def patient_detail(db: Session, patient: Patient) -> schemas.PatientDetail:
         lifestyle_notes=patient.lifestyle_notes,
         conditions=[schemas.ConditionOut.model_validate(row) for row in patient.conditions],
         medications=[schemas.MedicationOut.model_validate(row) for row in patient.medications],
+        warnings=[finding_out(f) for f in patient_findings(patient)],
         created_at=patient.created_at,
     )
 
@@ -323,9 +379,16 @@ def assessment_detail(
         .join(PainAssessment.documents)
     )
     report = quality.assess(inputs.context_for(assessment))
+    findings = assessment_findings(assessment)
+    recorder = db.get(User, assessment.doctor_id)
+    validator = db.get(User, assessment.validated_by) if assessment.validated_by else None
     return schemas.AssessmentDetail(
         **summary.model_dump(),
         doctor_id=assessment.doctor_id,
+        recorded_by=schemas.ClinicianOut.model_validate(recorder, from_attributes=True)
+        if recorder
+        else None,
+        validated_by_name=validator.display_name if validator else None,
         updated_at=assessment.updated_at,
         validated_at=assessment.validated_at,
         review_agreement=assessment.review_agreement,
@@ -333,7 +396,10 @@ def assessment_detail(
         onset=assessment.onset,
         onset_speed=assessment.onset_speed,
         started_at=assessment.started_at,
+        duration_value=assessment.duration_value,
+        duration_unit=assessment.duration_unit,
         duration_hours=assessment.duration_hours,
+        duration_label=duration_label(assessment.duration_value, assessment.duration_unit),
         pattern=assessment.pattern,
         course=assessment.course,
         recurrent=assessment.recurrent,
@@ -354,6 +420,9 @@ def assessment_detail(
         radiation_weakness=assessment.radiation_weakness,
         recent_trauma=assessment.recent_trauma,
         recent_surgery=assessment.recent_surgery,
+        symptoms_note=assessment.symptoms_note,
+        aggravating_note=assessment.aggravating_note,
+        relieving_note=assessment.relieving_note,
         locations=[
             schemas.LocationIn(code=row.location_code, side=row.side, is_primary=row.is_primary)
             for row in assessment.locations
@@ -383,6 +452,8 @@ def assessment_detail(
             for row in sorted(assessment.notes, key=lambda row: row.created_at)
         ],
         document_count=document_count or 0,
+        warnings=[finding_out(f) for f in findings],
+        urgent_review=any(f.level == consistency.URGENT for f in findings),
         completeness=report.completeness,
         missing_fields=report.missing,
     )

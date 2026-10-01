@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from sqlalchemy import select
 
+from backend.signals import inference, schema
 from database.models import (
     Patient,
     RecordingState,
@@ -18,7 +19,6 @@ from database.models import (
     SignalRecording,
     SignalSource,
 )
-from backend.signals import inference, schema
 
 CHANNELS = [
     "EEG_FPZ",

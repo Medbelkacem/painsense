@@ -25,8 +25,6 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from config import get_settings
-from database.models import Granularity, SourceAccess
 from backend.sync import http
 from backend.sync.sources.base import (
     CLINICAL_RECORDS,
@@ -38,6 +36,8 @@ from backend.sync.sources.base import (
     dominant_format,
 )
 from backend.sync.storage import safe_extract
+from config import get_settings
+from database.models import Granularity, SourceAccess
 
 API = "https://www.kaggle.com/api/v1"
 

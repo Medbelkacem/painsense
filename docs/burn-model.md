@@ -116,7 +116,7 @@ done
 7z x burn_masks.7z
 
 cd ../backend && source .venv/bin/activate
-python -m app.cli train-burn-tbsa --dataset ../masshumanburns --register --cv-folds 3
+python -m backend.cli train-burn-tbsa --dataset ../masshumanburns --register --cv-folds 3
 ```
 
 Seeded at 42 by default. Loading takes about 30 seconds and the fit about 40; three

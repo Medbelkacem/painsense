@@ -37,8 +37,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from database.models import Granularity
 from backend.sync import profile as profiling
+from database.models import Granularity
 
 #: A grouped split needs enough distinct people that each fold holds several. Below this
 #: a cross-validated score says more about which subjects landed where than about a model.

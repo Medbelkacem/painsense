@@ -49,28 +49,25 @@ contributions, then a transparent rule layer for the candidate categories, the a
 the priority indicator.
 
 ```
+config.py           settings, read from .env
+database/           ORM models, session, reference-data seeding
+knowledge/          taxonomies, wards, consistency checks, cause knowledge base, rule engine
+security/           authentication, encryption, hybrid PQC, keystore, audit, ledger
+dataset/synthetic/  synthetic generator and clinical archetypes (training data only)
 backend/
-  app/
-    api/            HTTP layer, one module per resource
-    ai/             quality gate, features, model registry, estimator, training
-    behaviour/      camera and microphone: eyes, face, voice, quality, voice model
-    knowledge/      taxonomies, question engine, cause knowledge base, rule engine
-    security/       authentication, encryption, hybrid PQC, keystore, audit
-    blockchain/     canonical hashing, append-only ledger, verification
-    reports/        PDF generation
-    database/       models, session, reference-data seeding
-    datasets/       synthetic generator, clinical archetypes, demonstration cases
+  api/              HTTP layer, one module per resource
+  ai/               quality gate, features, model registry, estimator, training
+  behaviour/        camera and microphone: eyes, face, voice, quality, voice model
+  signals/          EEG and EMG acquisition, simulator, features, inference
+  reports/          PDF generation
   migrations/       Alembic
   tests/
 frontend/
   src/
     api/            typed client and query hooks
-    anatomy/        3D body: parametric model, scene, outside/inside viewer
-    components/     interface primitives, body map, pain scale
-    charts/         trend and distribution charts
-    forms/          patient form, assessment wizard steps
+    anatomy/        3D body: parametric model, scene, site picker
+    components/     patient form, assessment summary, estimate panel, layout
     pages/          one module per route
-  e2e/              Playwright
 ```
 
 ## Prerequisites
@@ -129,14 +126,30 @@ refuse startup instead.
 
 ## Database
 
+The schema comes from the migrations and nothing else: no seeded patients, no sample
+scores. The only rows written at start-up are the reference taxonomies.
+
 ```
 cd backend
-.venv/bin/alembic upgrade head
-.venv/bin/python -m app.cli bootstrap --email you@hospital.example --password "a long passphrase" --admin
+PYTHONPATH=.. .venv/bin/alembic upgrade head
+PYTHONPATH=.. .venv/bin/python -m backend.cli bootstrap --email you@hospital.example --password "a long passphrase" --admin
 ```
 
-`bootstrap` also loads the reference taxonomies. `python -m app.cli seed` reloads them on
-their own after an upgrade.
+`bootstrap` also loads the reference taxonomies. `python -m backend.cli seed` reloads them
+on their own after an upgrade. Every screen starts empty and says so.
+
+## Accounts and roles
+
+| Role | Can |
+| --- | --- |
+| `DOCTOR` | Register patients, record, estimate, validate and delete assessments, export PDFs |
+| `NURSE` | Register patients, record and estimate; cannot validate or delete |
+| `PATIENT` | Read one record, the one an administrator tied to the account, and export its PDFs |
+| `CLINIC_ADMIN`, `SUPER_ADMIN` | Everything clinical except validation, plus accounts, models and datasets |
+| `RESEARCHER`, `AUDITOR` | Models and datasets; integrity and audit |
+
+Self-registration creates a doctor or a nurse account from the profession given. Patient
+accounts are created by an administrator on the Accounts page.
 
 ## External datasets
 
@@ -146,8 +159,8 @@ the result per disease. Restricted datasets are recorded with the steps a person
 follow to obtain them; their files are never requested.
 
 ```bash
-python -m app.cli sync --discover-only      # catalogue, download nothing
-python -m app.cli sync --source kaggle      # one publisher
+python -m backend.cli sync --discover-only      # catalogue, download nothing
+python -m backend.cli sync --source kaggle      # one publisher
 ```
 
 The `worker` service runs this on a schedule. Full behaviour, configuration and the
@@ -178,7 +191,7 @@ A model is fitted on those features from the PainMonit database, 52 volunteers u
 calibrated contact heat, validated on people it never saw:
 
 ```bash
-python -m app.cli train-signal-pain --dataset /path/to/painmonit
+python -m backend.cli train-signal-pain --dataset /path/to/painmonit
 ```
 
 It reads skin conductance alone — the corpus samples at 250 Hz, under the rate these EMG
@@ -225,7 +238,7 @@ The clip is deleted once the measures are out of it unless the clinician asks fo
 kept.
 
 ```
-.venv/bin/python -m app.behaviour.training    # the voice model, on the acquired corpus
+PYTHONPATH=.. .venv/bin/python -m backend.behaviour.training    # the voice model, on the acquired corpus
 ```
 
 What is measured, how, what it is refused for, and what it does not mean:
@@ -233,53 +246,70 @@ What is measured, how, what it is refused for, and what it does not mean:
 
 ## Dataset and model
 
-The estimator has nothing to run on until a dataset exists and a model is trained.
+The estimator has nothing to run on until a dataset exists and a model is trained. The
+dataset is synthetic training data, never patients: it is written under `backend/datasets/`
+and does not appear anywhere in the interface.
 
 ```
-.venv/bin/python -m app.datasets.generate --rows 10000 --seed 42
-.venv/bin/python -m app.ai.training
+cd backend
+PYTHONPATH=.. .venv/bin/python ../scripts/generate_dataset.py --patients 1200 --assessments 12000 --seed 42
+PYTHONPATH=.. .venv/bin/python -m backend.cli train
 ```
 
-The generator is reproducible: the same seed and row count produce the same file. Every
-record is synthetic and the files say so. Until a model is active, the estimate endpoint
-refuses rather than returning a number.
-
-Optionally load seven synthetic demonstration patients covering different presentations:
-
-```
-.venv/bin/python -m app.cli demo --email you@hospital.example
-```
+`train` fits the newest generated dataset, registers the model and makes it the active one.
+Until a model is active, the estimate endpoint refuses rather than returning a number.
+Both steps are also available to administrators from the Dataset and AI models pages.
 
 ## Running
 
 ```
-cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000
+cd backend && PYTHONPATH=.. .venv/bin/uvicorn backend.main:app --reload --port 8000
 cd frontend && npm run dev
 ```
 
-The interface is on `http://localhost:5173` and proxies `/api` to the backend. Point it
-somewhere else with `API_URL=http://host:port npm run dev`.
+The interface is on `https://localhost:5173` when `frontend/certs/` holds a certificate
+(`scripts/dev-cert.sh` issues one; the camera and microphone need it away from localhost)
+and on `http://localhost:5173` otherwise. It proxies `/api` to the backend; point it
+elsewhere with `API_PROXY=http://host:port npm run dev`.
+
+## The assessment form
+
+One wizard records a patient (name, identifier issued as `PS-YYYY-NNNNNN`, age, sex, ward
+from a fixed list, Algerian telephone numbers, emergency contact, smoking status), the
+assessing clinician from the signed-in account, the pain (sites on the anatomical model,
+character, onset, duration as a number and a unit, pattern, course, radiation, timing),
+symptoms, factors and context with free text beside every coded picker, the patient's own
+0 to 10 score, vital signs, and the two optional measured channels. A draft is written the
+moment a patient is chosen and amended on every step, so nothing is lost when a form is
+left halfway. Empty optional fields are shown as "None recorded" on screen and in the PDF.
+
+Three cross-checks run on every save and warn without blocking: a chronic condition that is
+usually treated with no treatment on the medication list, an age that does not fit the ward,
+and fever with chest pain of sudden onset, which puts a "Requires urgent clinical review"
+banner on the assessment and on the report.
+
+The EEG and EMG step has a "Simulation mode" switch, off by default. With it on, samples come
+from the software simulator and every record is stored and labelled SIMULATION.
 
 ## Tests
 
-```
-cd backend
-.venv/bin/python -m pytest tests
-.venv/bin/ruff check app tests migrations
+Backend tests cover the API, the form rules, the consistency checks, deletion, the roles and
+the PDF layout. Run everything with:
 
-cd ../frontend
-npm test
+```
+backend/.venv/bin/python -m pytest        # from the repository root
+backend/.venv/bin/ruff check .
+
+cd frontend
+npx tsc -b
 npm run lint
-npx playwright install chromium   # once
-npm run e2e
 ```
 
 The backend suite covers authentication and lockout, record and document encryption, the
 hybrid key agreement and signatures including tamper detection on both halves, the ledger
 and audit chains including detection of an edited record, the question engine, the rule
 engine, the data-quality gate, the estimation pipeline, and the HTTP workflow end to end.
-The Playwright suite drives a browser through sign-in, patient creation, the seven-step
-assessment, the estimate, validation and the PDF download.
+There is no browser test suite in the repository; the interface is checked by hand.
 
 ## Docker
 

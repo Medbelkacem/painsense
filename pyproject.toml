@@ -1,5 +1,7 @@
 [tool.ruff]
 line-length = 96
+# The earlier standalone prototype is kept for reference and is not part of this code base.
+extend-exclude = ["painscore-prototype"]
 
 [tool.ruff.lint]
 extend-select = ["E402"]
@@ -13,4 +15,8 @@ extend-select = ["E402"]
 testpaths = ["backend/tests", "dataset/tests"]
 filterwarnings = [
     "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+    # shap's colour helpers, imported for the explainer, still use deprecated matplotlib
+    # and numpy calls. Nothing in this repository touches them.
+    "ignore::DeprecationWarning:shap.plots.colors",
+    "ignore::PendingDeprecationWarning:shap.plots.colors",
 ]

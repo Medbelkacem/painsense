@@ -17,9 +17,6 @@ dataset/sources/
 dataset/reports/
 dataset/tests/
 dataset/*.parquet
-datasets/
 frontend/
-painsense-frontend/
-painscore-prototype/
 26965159/
 docs/

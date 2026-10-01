@@ -1,10 +1,11 @@
-from security import pqc
 from backend.tests.conftest import DOCTOR_EMAIL, PASSWORD
+from security import pqc
 
 CHEST_CASE = {
     "onset": "SUDDEN",
     "onset_speed": "MINUTES",
-    "duration_hours": 3.0,
+    "duration_value": 3,
+    "duration_unit": "hours",
     "pattern": "INTERMITTENT",
     "course": "WORSENING",
     "radiates": True,
@@ -61,8 +62,9 @@ def make_patient(client, headers, **overrides):
             "phone": "+213 555 01 02 03",
         },
         "sex": "F",
+        "age_years": 58,
         "birth_date": "1968-04-12",
-        "ward": "Cardiology",
+        "ward": "Medicine",
         "smoking_status": "FORMER",
         "condition_codes": ["HYPERTENSION", "DIABETES_T2"],
         "medications": [{"name": "Metformin", "dose": "1000 mg", "frequency": "twice daily"}],
@@ -162,6 +164,8 @@ def test_an_unknown_condition_code_is_refused(client, doctor_headers):
         headers=doctor_headers,
         json={
             "identity": {"given_name": "Amel", "family_name": "Cherif"},
+            "sex": "F",
+            "age_years": 58,
             "condition_codes": ["NOT_A_REAL_CODE"],
         },
     )

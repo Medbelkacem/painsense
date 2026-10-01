@@ -109,17 +109,17 @@ PHYSIONET_TITLE_KEYWORDS = ("pain", "nocicep", "analgesi", "opioid")
 
 ACCESS_SENTENCES = (
     (
-        "Anyone can access the files, as long as they conform to the terms of the specified "
-        "license", "open",
+        ("Anyone can access the files, as long as they conform to the terms of the specified "
+        "license"), "open",
     ),
     ("Only credentialed users who sign the DUA can access the files", "credentialed"),
     (
-        "Only credentialed users who sign the specified data use agreement can access the "
-        "files", "credentialed",
+        ("Only credentialed users who sign the specified data use agreement can access the "
+        "files"), "credentialed",
     ),
     (
-        "Only registered users who sign the specified data use agreement can access the "
-        "files", "restricted",
+        ("Only registered users who sign the specified data use agreement can access the "
+        "files"), "restricted",
     ),
     ("Only registered users who sign the DUA can access the files", "restricted"),
 )

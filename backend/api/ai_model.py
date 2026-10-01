@@ -3,8 +3,8 @@ from sqlalchemy import func, select
 
 from backend.ai import drift, features, model
 from backend.api import jobs, schemas
-from database.models import ModelVersion, PainPrediction
 from backend.dependencies import AdminUser, DbSession, ResearchUser
+from database.models import ModelVersion, PainPrediction
 
 router = APIRouter(prefix="/api/model", tags=["model"])
 

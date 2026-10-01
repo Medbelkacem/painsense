@@ -5,28 +5,28 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 /**
- * HTTPS is read from frontend/certs/ when it is there, because camera and microphone access
- * needs a secure context. A browser treats localhost as secure and a plain-http LAN address as
- * not, so reaching the dev server from a phone at http://192.168.x.x:5173 means getUserMedia is
- * refused before any permission prompt appears. `scripts/dev-cert.sh` issues the certificate.
+ * Plain http by default. A browser treats http://localhost as a secure context, so the camera
+ * and microphone work there without any certificate and without a "not secure" warning.
  *
- * Without the certificate the server still starts, over http, and everything but camera and
- * microphone works — on localhost those work too.
+ * HTTPS is for reaching the dev server from a phone on the same network: a plain-http LAN
+ * address is not a secure context and getUserMedia is refused before any permission prompt
+ * appears. Start with `DEV_HTTPS=1 npm run dev` once `scripts/dev-cert.sh` has issued the
+ * self-signed certificate into frontend/certs/, and accept the browser's warning once.
  */
 // `import.meta.dirname`, not `__dirname`: vite's native config loader does not provide the
 // CommonJS globals and warns that relying on them will stop working.
 const certDir = path.resolve(import.meta.dirname, 'certs')
 const key = path.join(certDir, 'dev-key.pem')
 const cert = path.join(certDir, 'dev-cert.pem')
+const wantHttps = process.env.DEV_HTTPS === '1'
 const https =
-  fs.existsSync(key) && fs.existsSync(cert)
+  wantHttps && fs.existsSync(key) && fs.existsSync(cert)
     ? { key: fs.readFileSync(key), cert: fs.readFileSync(cert) }
     : undefined
 
-if (!https) {
+if (wantHttps && !https) {
   console.warn(
-    '[painsense] no dev certificate in frontend/certs — serving over http.\n' +
-      '            Camera and microphone will work on localhost but not from a phone.\n' +
+    '[painsense] DEV_HTTPS=1 but frontend/certs holds no certificate; serving over http.\n' +
       '            Run ./scripts/dev-cert.sh to issue one.',
   )
 }

@@ -144,10 +144,10 @@ The `worker` service in `docker-compose.yml` does this automatically. By hand:
 
 ```bash
 # Catalogue what every due publisher lists, without downloading anything
-python -m app.cli sync --discover-only
+python -m backend.cli sync --discover-only
 
 # One source, retrieving at most two datasets
-python -m app.cli sync --source kaggle --limit 2
+python -m backend.cli sync --source kaggle --limit 2
 
 # Through the API (admin only); the worker picks the job up
 curl -X POST localhost:8000/api/external-datasets/sync \

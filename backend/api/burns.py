@@ -26,6 +26,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.api import schemas
 from backend.burns import service, tbsa
+from backend.dependencies import AdminUser, ClinicalUser, CurrentUser, DbSession, client_ip
 from database.models import (
     Attribution,
     BurnAlert,
@@ -40,7 +41,6 @@ from database.models import (
     WoundCareEvent,
     WoundImage,
 )
-from backend.dependencies import AdminUser, ClinicalUser, CurrentUser, DbSession, client_ip
 from knowledge import burns as reference
 from security import audit
 

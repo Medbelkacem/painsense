@@ -8,8 +8,8 @@ from pathlib import Path
 from sqlalchemy import select
 
 from config import get_settings
-from database.session import SessionLocal
 from database.models import BackgroundJob, JobStatus
+from database.session import SessionLocal
 
 logger = logging.getLogger("painsense.worker")
 

@@ -35,6 +35,15 @@ export type SyncStage =
 export type SyncOutcome = 'OK' | 'SKIPPED' | 'FAILED';
 export type RunStatus = 'RUNNING' | 'DONE' | 'FAILED';
 
+export type Role =
+  | 'SUPER_ADMIN'
+  | 'CLINIC_ADMIN'
+  | 'DOCTOR'
+  | 'NURSE'
+  | 'PATIENT'
+  | 'RESEARCHER'
+  | 'AUDITOR';
+
 export interface User {
   id: string;
   email: string;
@@ -42,7 +51,10 @@ export interface User {
   clinic_name?: string | null;
   phone?: string | null;
   profession: 'DOCTOR' | 'NURSE' | 'RESIDENT' | 'OTHER';
-  role: string;
+  role: Role;
+  /** Set on a patient account: the one record it may read. */
+  patient_id?: string | null;
+  patient_code?: string | null;
   registration_number?: string | null;
   speciality?: string | null;
   is_active: boolean;
@@ -651,13 +663,41 @@ export interface PatientIdentity {
   emergency_contact_phone?: string | null;
 }
 
+export type Ward =
+  | 'Emergency'
+  | 'Surgery'
+  | 'Medicine'
+  | 'Intensive care'
+  | 'Oncology'
+  | 'Rheumatology'
+  | 'Paediatrics'
+  | 'Other';
+
+export const WARDS: readonly Ward[] = [
+  'Emergency',
+  'Surgery',
+  'Medicine',
+  'Intensive care',
+  'Oncology',
+  'Rheumatology',
+  'Paediatrics',
+  'Other',
+];
+
+/** A cross-check the server raised over the record. Never blocks a save. */
+export interface Finding {
+  code: string;
+  level: 'WARNING' | 'URGENT';
+  message: string;
+}
+
 export interface PatientSummary {
   id: string;
   code: string;
   display_name: string;
   sex: Sex;
   age: number | null;
-  ward: string | null;
+  ward: Ward | null;
   is_synthetic: boolean;
   archived: boolean;
   assessment_count: number;
@@ -685,6 +725,7 @@ export interface PatientCondition {
 
 export interface PatientDetail extends PatientSummary {
   identity: PatientIdentity | null;
+  age_years: number | null;
   birth_date: string | null;
   smoking_status: SmokingStatus;
   medical_history: string | null;
@@ -694,6 +735,7 @@ export interface PatientDetail extends PatientSummary {
   lifestyle_notes: string | null;
   conditions: PatientCondition[];
   medications: PatientMedication[];
+  warnings: Finding[];
   created_at: string;
 }
 
@@ -892,11 +934,14 @@ export interface AssessmentNote {
 }
 
 /** The timing, pattern and history fields an assessment carries in its own right. */
+export type DurationUnit = 'minutes' | 'hours' | 'days' | 'months' | 'years';
+
 export interface AssessmentBody {
   onset: Onset;
   onset_speed: OnsetSpeed;
   started_at: string | null;
-  duration_hours: number | null;
+  duration_value: number | null;
+  duration_unit: DurationUnit | null;
   pattern: Pattern;
   course: Course;
   recurrent: boolean;
@@ -917,6 +962,9 @@ export interface AssessmentBody {
   radiation_weakness: boolean;
   recent_trauma: boolean;
   recent_surgery: boolean;
+  symptoms_note: string | null;
+  aggravating_note: string | null;
+  relieving_note: string | null;
 }
 
 export interface AssessmentCreate extends Partial<AssessmentBody> {
@@ -937,12 +985,22 @@ export interface AssessmentCreate extends Partial<AssessmentBody> {
   expected_pain?: boolean;
 }
 
+export interface Clinician {
+  display_name: string;
+  speciality?: string | null;
+  registration_number?: string | null;
+}
+
 export interface AssessmentDetail extends AssessmentSummary, AssessmentBody {
   doctor_id: string;
+  recorded_by: Clinician | null;
+  validated_by_name: string | null;
   updated_at: string;
   validated_at: string | null;
   review_agreement: ReviewAgreement | null;
   review_comment: string | null;
+  duration_hours: number | null;
+  duration_label: string;
   locations: PainLocationRef[];
   anatomical_sites: AnatomicalSiteOut[];
   quality_codes: string[];
@@ -956,6 +1014,8 @@ export interface AssessmentDetail extends AssessmentSummary, AssessmentBody {
   prediction: Prediction | null;
   notes: AssessmentNote[];
   document_count: number;
+  warnings: Finding[];
+  urgent_review: boolean;
   completeness: number;
   missing_fields: string[];
 }
@@ -1172,7 +1232,6 @@ export interface ProfileCatalogue {
 
 export interface Analytics {
   patients_total: number;
-  patients_synthetic: number;
   assessments_total: number;
   assessments_today: number;
   assessments_awaiting_validation: number;

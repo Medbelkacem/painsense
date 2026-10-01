@@ -11,6 +11,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from backend.sync import fingerprint, licensing, profile, storage, suitability, validate
+from backend.sync.sources.base import RemoteDataset
 from database.models import (
     Availability,
     Granularity,
@@ -18,8 +20,6 @@ from database.models import (
     QualityStatus,
     SourceAccess,
 )
-from backend.sync import fingerprint, licensing, profile, storage, suitability, validate
-from backend.sync.sources.base import RemoteDataset
 
 # --- licence and access gates --------------------------------------------------------
 

@@ -55,9 +55,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.ai import model as model_store
+from backend.signals import inference, painmonit, schema
 from database.models import ModelVersion
 from security import audit
-from backend.signals import inference, painmonit, schema
 
 #: Folds for the person-grouped cross-validation. Five over fifty-odd people leaves ten
 #: unseen people per fold, which is enough for a fold error to mean something.

@@ -8,10 +8,10 @@ import { Logo } from '../ui/Logo';
 import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Pill, Tile } from '../ui/Pill';
-import { BandBars, Sparkline, Waveform } from '../ui/charts';
+import { Waveform } from '../ui/charts';
 import { NrsScale } from '../ui/NrsScale';
-import { nrsDistribution, patients } from '../demo/cohort';
 import { useTheme } from '../theme';
+import { DISCLAIMER } from '../lib/clinical';
 
 const PILLARS = [
   {
@@ -45,7 +45,6 @@ const FLOW = [
 
 export const LandingPage: React.FC = () => {
   const theme = useTheme();
-  const counts = nrsDistribution();
 
   return (
     <div className="min-h-dvh bg-canvas text-ink">
@@ -112,42 +111,37 @@ export const LandingPage: React.FC = () => {
             </div>
             <p className="mt-6 flex items-center gap-2 text-[11.5px] text-faint">
               <Lock className="h-3.5 w-3.5" />
-              Demonstration workspace running on synthetic data · clinical decision support only
+              Clinical decision support only. A clinical account is needed to open the workspace.
             </p>
           </div>
 
-          {/* A live fragment of the product rather than a screenshot — it is the same
-              components the workspace uses, so it can never go stale. */}
+          {/* The same scale widget the assessment form uses, so the picture of the product
+              is the product. The numbers are an illustration of the layout, not a record. */}
           <div className="relative">
             <Card className="overflow-hidden p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[13px] font-semibold text-ink">Pain overview</p>
-                  <p className="text-[11px] text-mute">Patient-reported NRS · last 30 days</p>
+                  <p className="text-[13px] font-semibold text-ink">Reported against estimated</p>
+                  <p className="text-[11px] text-mute">How the two numbers sit side by side</p>
                 </div>
-                <Pill tone="violet" size="xs" dot>
-                  Synthetic
+                <Pill tone="neutral" size="xs">
+                  Illustration
                 </Pill>
               </div>
-              <BandBars counts={counts} className="mt-5" showLabels={false} />
-              <div className="mt-5 grid grid-cols-3 gap-3 border-t border-hairline pt-4">
-                {[
-                  ['Patients', String(patients.length)],
-                  ['Mean NRS', '4.2'],
-                  ['Mean |AI − NRS|', '0.62'],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <p className="text-[10px] text-faint">{label}</p>
-                    <p className="mt-0.5 text-[18px] font-semibold text-ink tabular-nums">{value}</p>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            <Card className="absolute -bottom-8 -left-4 hidden w-64 p-4 sm:block">
-              <p className="text-[11px] text-mute">Reported intensity</p>
-              <div className="mt-2">
+              <div className="mt-5">
                 <NrsScale value={6} ghost={6.4} size="sm" />
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-3 border-t border-hairline pt-4">
+                <div>
+                  <p className="text-[10px] text-faint">Patient-reported</p>
+                  <p className="mt-0.5 text-[18px] font-semibold text-ink tabular-nums">6 / 10</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-faint">Model estimate, with its interval</p>
+                  <p className="mt-0.5 text-[18px] font-semibold text-violet tabular-nums">
+                    6.4 <span className="text-[12px] font-normal text-mute">(5.1 to 7.6)</span>
+                  </p>
+                </div>
               </div>
             </Card>
           </div>
@@ -235,20 +229,17 @@ export const LandingPage: React.FC = () => {
           <Card className="flex flex-wrap items-center justify-between gap-6 p-8">
             <div className="max-w-md">
               <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-ink">
-                Open the demonstration workspace
+                Open the workspace
               </h2>
               <p className="mt-2 text-[13px] text-soft">
-                128 synthetic patients, 137 assessments and the full assessment flow — no account
-                needed.
+                Sign in with the account your administrator created, register the first patient
+                and record an assessment. Nothing is pre-filled.
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <div className="hidden w-32 sm:block">
-                <Sparkline values={[3, 4, 3.6, 5, 4.4, 5.8, 4.9]} tone="var(--brand-teal)" />
-              </div>
-              <Link to="/dashboard">
+              <Link to="/login">
                 <Button variant="primary" size="lg">
-                  Open workspace
+                  Sign in
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
@@ -260,8 +251,7 @@ export const LandingPage: React.FC = () => {
       <footer className="border-t border-hairline bg-surface">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-8 text-[11.5px] text-faint">
           <Logo size="sm" />
-          <span>Clinical decision support only · not a diagnosis · synthetic demonstration data</span>
-          <span>v1.0 · build 2026.09</span>
+          <span>{DISCLAIMER}</span>
         </div>
       </footer>
     </div>

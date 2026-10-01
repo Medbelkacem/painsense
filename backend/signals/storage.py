@@ -37,8 +37,8 @@ from typing import Self
 
 import numpy as np
 
-from config import get_settings
 from backend.signals import schema
+from config import get_settings
 
 EEG_FILE = "eeg.csv"
 EMG_FILE = "emg.csv"

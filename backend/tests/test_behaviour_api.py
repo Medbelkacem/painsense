@@ -13,8 +13,8 @@ import pytest
 from cryptography.exceptions import InvalidTag
 
 from backend.behaviour import service, storage
-from database.models import BehaviourObservation, Patient, PatientConsent
 from backend.tests import synthetic_clip
+from database.models import BehaviourObservation, Patient, PatientConsent
 
 
 @pytest.fixture

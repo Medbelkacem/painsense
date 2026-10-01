@@ -24,12 +24,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from backend.ai import training
-from database.session import Base, engine
-from database.models import Role, User
-from database.seed import seed_reference_data
-from dataset.synthetic import generate
 from backend.dependencies import get_db, limiter
 from backend.main import app
+from database.models import Role, User
+from database.seed import seed_reference_data
+from database.session import Base, engine
+from dataset.synthetic import generate
 from security import authentication as auth
 
 DOCTOR_EMAIL = "s.benali@chu-batna.dz"

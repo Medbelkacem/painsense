@@ -23,8 +23,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from database.models import Granularity, SourceAccess
 from backend.sync import http
+from database.models import Granularity, SourceAccess
 
 #: Dataset shapes these publishers hand out. `AGGREGATE_STATISTICS` exists because most of
 #: what WHO and CDC publish is counts per country-week, not records per person, and calling

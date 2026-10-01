@@ -4,8 +4,8 @@ from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
 
 from backend.api import schemas
-from database.models import Role, User
 from backend.dependencies import AdminUser, DbSession, client_ip
+from database.models import Patient, Role, User
 from security import audit
 from security import authentication as auth
 
@@ -14,7 +14,9 @@ router = APIRouter(prefix="/api/users", tags=["accounts"])
 ROLE_LABELS = {
     Role.SUPER_ADMIN: "Platform administrator",
     Role.CLINIC_ADMIN: "Clinic administrator",
-    Role.DOCTOR: "Clinician",
+    Role.DOCTOR: "Doctor",
+    Role.NURSE: "Nurse",
+    Role.PATIENT: "Patient",
     Role.RESEARCHER: "Researcher",
     Role.AUDITOR: "Auditor",
 }
@@ -25,6 +27,21 @@ def _may_assign(admin: User, role: Role) -> None:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             detail="Only the platform administrator can grant that role",
+        )
+
+
+def _patient_link(db, role: Role | None, patient_id) -> None:
+    """A PATIENT account must point at a record that exists; any other role must not."""
+    if role is Role.PATIENT:
+        if patient_id is None or db.get(Patient, patient_id) is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="A patient account needs the patient record it belongs to",
+            )
+    elif patient_id is not None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Only a patient account can be tied to a patient record",
         )
 
 
@@ -52,6 +69,7 @@ def create_user(
     payload: schemas.DoctorCreate, request: Request, db: DbSession, admin: AdminUser
 ) -> schemas.UserOut:
     _may_assign(admin, payload.role)
+    _patient_link(db, payload.role, payload.patient_id)
     email = payload.email.lower().strip()
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="That email is already registered")
@@ -66,6 +84,7 @@ def create_user(
         phone=payload.phone,
         registration_number=payload.registration_number,
         speciality=payload.speciality,
+        patient_id=payload.patient_id,
     )
     db.add(created)
     db.commit()
@@ -100,6 +119,10 @@ def update_user(
     changes = payload.model_dump(exclude_unset=True)
     if "role" in changes and changes["role"] is not None:
         _may_assign(admin, changes["role"])
+    if "role" in changes or "patient_id" in changes:
+        _patient_link(
+            db, changes.get("role", target.role), changes.get("patient_id", target.patient_id)
+        )
     if target.id == admin.id and changes.get("is_active") is False:
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail="An administrator cannot disable their own account"

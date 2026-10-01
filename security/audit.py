@@ -5,10 +5,10 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from database.models import AuditLog
+from database.session import serialise_appends
 from security import ledger
 from security.ledger import ZERO_HASH, audit_payload, digest
-from database.session import serialise_appends
-from database.models import AuditLog
 
 ACCOUNT_REGISTERED = "ACCOUNT_REGISTERED"
 LOGIN = "LOGIN"
@@ -19,9 +19,11 @@ PATIENT_CREATED = "PATIENT_CREATED"
 PATIENT_VIEWED = "PATIENT_VIEWED"
 PATIENT_UPDATED = "PATIENT_UPDATED"
 PATIENT_ARCHIVED = "PATIENT_ARCHIVED"
+PATIENT_DELETED = "PATIENT_DELETED"
 ASSESSMENT_CREATED = "ASSESSMENT_CREATED"
 ASSESSMENT_UPDATED = "ASSESSMENT_UPDATED"
 ASSESSMENT_VALIDATED = "ASSESSMENT_VALIDATED"
+ASSESSMENT_DELETED = "ASSESSMENT_DELETED"
 DOCUMENT_UPLOADED = "DOCUMENT_UPLOADED"
 DOCUMENT_UPDATED = "DOCUMENT_UPDATED"
 DOCUMENT_VIEWED = "DOCUMENT_VIEWED"

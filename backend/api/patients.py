@@ -3,25 +3,34 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.ai import trajectory
 from backend.ai.quality import VITAL_LABELS
 from backend.api import schemas, serializers
+from backend.behaviour import storage as observation_storage
+from backend.dependencies import ClinicalUser, DbSession, ViewerUser, client_ip
+from backend.signals import storage as signal_storage
+from config import get_settings
 from database.models import (
     ADMIN_ROLES,
+    BehaviourObservation,
+    BurnIncident,
+    ClinicalReport,
     Disease,
     MedicalDocument,
     PainAssessment,
     Patient,
     PatientBaseline,
     PatientCondition,
+    PatientConsent,
     PatientMedication,
+    Role,
+    SignalRecording,
     User,
 )
-from backend.dependencies import ClinicalUser, DbSession, client_ip
 from knowledge import medications as medications_kb
 from knowledge import rules
 from security import audit
@@ -83,6 +92,14 @@ def require_modify(db: Session, patient: Patient, user: User) -> Patient:
             detail="Only the clinician who created or assessed this patient can change the record",
         )
     return patient
+
+
+def require_view(user: User, patient_id: uuid.UUID) -> None:
+    """A clinical account reads any record; a patient account reads its own and nothing else."""
+    if user.role is Role.PATIENT and user.patient_id != patient_id:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, detail="This record belongs to another patient"
+        )
 
 
 def _check_disease_codes(db: Session, codes: list[str]) -> None:
@@ -216,11 +233,59 @@ def create_patient(
 
 @router.get("/{patient_id}", response_model=schemas.PatientDetail)
 def read_patient(
-    patient_id: uuid.UUID, request: Request, db: DbSession, user: ClinicalUser
+    patient_id: uuid.UUID, request: Request, db: DbSession, user: ViewerUser
 ) -> schemas.PatientDetail:
+    require_view(user, patient_id)
     patient = get_patient(db, patient_id)
     _record_view(db, request, user, patient)
     return serializers.patient_detail(db, patient)
+
+
+@router.delete("/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_patient(
+    patient_id: uuid.UUID, request: Request, db: DbSession, user: ClinicalUser
+) -> None:
+    patient = require_modify(db, get_patient(db, patient_id), user)
+    if user.role is Role.NURSE:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="A nurse cannot delete a record")
+    code = patient.code
+
+    # Files on disk go with their rows. The audit log and the ledger are left alone: both
+    # are append-only and neither holds anything that identifies the person.
+    store = get_settings().document_store_path
+    for document in db.scalars(select(MedicalDocument).where(MedicalDocument.patient_id == patient.id)):
+        (store / document.storage_name).unlink(missing_ok=True)
+        db.delete(document)
+    for observation in db.scalars(
+        select(BehaviourObservation).where(BehaviourObservation.patient_id == patient.id)
+    ):
+        observation_storage.discard(observation.storage_key)
+        db.delete(observation)
+    for recording in db.scalars(
+        select(SignalRecording).where(SignalRecording.patient_id == patient.id)
+    ):
+        if recording.storage_key:
+            signal_storage.discard(recording.storage_key)
+        db.delete(recording)
+    for table in (ClinicalReport, BurnIncident, PatientConsent):
+        for row in db.scalars(select(table).where(table.patient_id == patient.id)):
+            db.delete(row)
+    for assessment in list(patient.assessments):
+        db.delete(assessment)
+    db.execute(update(User).where(User.patient_id == patient.id).values(patient_id=None))
+    db.delete(patient)
+    db.commit()
+
+    audit.record(
+        db,
+        event_type=audit.PATIENT_DELETED,
+        actor_id=user.id,
+        actor_label=user.email,
+        resource="patient",
+        resource_id=code,
+        client_ip=client_ip(request),
+        ledger_payload={"code": code, "deleted_by": str(user.id)},
+    )
 
 
 @router.patch("/{patient_id}", response_model=schemas.PatientDetail)
@@ -291,15 +356,17 @@ def archive_patient(
 
 @router.get("/{patient_id}/history", response_model=schemas.HistoryOut)
 def patient_history(
-    patient_id: uuid.UUID, db: DbSession, user: ClinicalUser
+    patient_id: uuid.UUID, db: DbSession, user: ViewerUser
 ) -> schemas.HistoryOut:
+    require_view(user, patient_id)
     return serializers.history(db, get_patient(db, patient_id))
 
 
 @router.get("/{patient_id}/assessments", response_model=list[schemas.AssessmentSummary])
 def patient_assessments(
-    patient_id: uuid.UUID, db: DbSession, user: ClinicalUser
+    patient_id: uuid.UUID, db: DbSession, user: ViewerUser
 ) -> list[schemas.AssessmentSummary]:
+    require_view(user, patient_id)
     get_patient(db, patient_id)
     rows = db.scalars(
         select(PainAssessment)
@@ -441,8 +508,9 @@ def _timeline_events(db: Session, patient: Patient) -> list[schemas.TimelineEven
 
 @router.get("/{patient_id}/timeline", response_model=schemas.TimelineOut)
 def patient_timeline(
-    patient_id: uuid.UUID, db: DbSession, user: ClinicalUser
+    patient_id: uuid.UUID, db: DbSession, user: ViewerUser
 ) -> schemas.TimelineOut:
+    require_view(user, patient_id)
     patient = get_patient(db, patient_id)
     return schemas.TimelineOut(
         patient_id=patient.id, patient_code=patient.code, events=_timeline_events(db, patient)
@@ -451,8 +519,9 @@ def patient_timeline(
 
 @router.get("/{patient_id}/baseline", response_model=schemas.BaselineOut)
 def patient_baseline(
-    patient_id: uuid.UUID, db: DbSession, user: ClinicalUser
+    patient_id: uuid.UUID, db: DbSession, user: ViewerUser
 ) -> schemas.BaselineOut:
+    require_view(user, patient_id)
     patient = get_patient(db, patient_id)
     ordered = sorted(patient.assessments, key=lambda row: row.created_at)
     latest = ordered[-1] if ordered else None

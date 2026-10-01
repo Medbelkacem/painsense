@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 
 from backend.api import schemas
-from config import get_settings
-from database.models import Role, SessionToken, User
 from backend.dependencies import CurrentUser, DbSession, client_ip, limiter, rate_limit
+from config import get_settings
+from database.models import Profession, Role, SessionToken, User
 from security import audit
 from security import authentication as auth
 
@@ -294,7 +294,7 @@ def register(
         profession=payload.profession,
         speciality=(payload.speciality or "").strip() or None,
         registration_number=(payload.registration_number or "").strip() or None,
-        role=Role.DOCTOR,
+        role=Role.NURSE if payload.profession is Profession.NURSE else Role.DOCTOR,
         last_login_at=datetime.now(timezone.utc),
     )
     db.add(user)

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Bell, Check, ChevronDown, ChevronRight, HelpCircle, LogOut, Menu as MenuIcon, Moon,
-  PanelLeftClose, PanelLeftOpen, RefreshCw, Search, Settings as SettingsIcon, Sun,
+  Bell, Check, ChevronDown, ChevronRight, LogOut, Menu as MenuIcon, Moon,
+  PanelLeftClose, PanelLeftOpen, Search, Settings as SettingsIcon, Sun,
   TriangleAlert, UserRound, X,
 } from 'lucide-react';
 import { Logo, Mark } from '../../ui/Logo';
@@ -10,13 +10,26 @@ import { IconButton } from '../../ui/Button';
 import { Menu } from '../../ui/Dropdown';
 import { Pill } from '../../ui/Pill';
 import { CommandPalette } from '../CommandPalette';
-import { breadcrumbFor, navGroups, settingsItem, type NavItem } from '../nav-model';
+import { breadcrumbFor, settingsItem, visibleTo, type NavItem } from '../nav-model';
 import { useSession } from '../../auth/session';
 import { useTheme } from '../../theme';
 import { initials, whenRelative } from '../../lib/format';
+import { DISCLAIMER } from '../../lib/clinical';
 import { useQuery } from '../../api/hooks';
 import type { Analytics } from '../../api/types';
 import { cx } from '../../lib/cx';
+
+const ROLE_WORD: Record<string, string> = {
+  SUPER_ADMIN: 'Platform administrator',
+  CLINIC_ADMIN: 'Clinic administrator',
+  DOCTOR: 'Doctor',
+  NURSE: 'Nurse',
+  PATIENT: 'Patient',
+  RESEARCHER: 'Researcher',
+  AUDITOR: 'Auditor',
+};
+
+const CLINICAL = new Set(['SUPER_ADMIN', 'CLINIC_ADMIN', 'DOCTOR', 'NURSE']);
 
 const RAIL_KEY = 'painsense.rail';
 
@@ -74,7 +87,8 @@ export const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(RAIL_KEY) === '1');
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const clinical = CLINICAL.has(user?.role ?? '');
+  const groups = visibleTo(user?.role);
 
   useEffect(() => {
     localStorage.setItem(RAIL_KEY, collapsed ? '1' : '0');
@@ -97,10 +111,10 @@ export const AppLayout: React.FC = () => {
 
   const crumb = breadcrumbFor(location.pathname);
 
-  // One request feeds the review bell, the rail badge and the synthetic-workspace notice.
-  // It polls slowly: an assessment signed on another workstation should show up here, but
-  // not at the cost of a request a second from every open tab.
-  const analytics = useQuery<Analytics>('/api/analytics', 120);
+  // One request feeds the review bell and the rail badge. It polls slowly: an assessment
+  // signed on another workstation should show up here, but not at the cost of a request
+  // a second from every open tab. A patient account has no overview to ask for.
+  const analytics = useQuery<Analytics>(clinical ? '/api/analytics' : null, 120);
   const waiting = analytics.data?.assessments_awaiting_validation ?? 0;
   const review = (analytics.data?.recent_assessments ?? [])
     .filter((item) => item.status !== 'VALIDATED')
@@ -133,7 +147,7 @@ export const AppLayout: React.FC = () => {
       </div>
 
       <nav className="flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-3 py-4">
-        {navGroups.map((group) => (
+        {groups.map((group) => (
           <div key={group.title} className="space-y-0.5">
             {collapsed ? (
               <div className="mx-auto mb-1.5 h-px w-6 bg-hairline" />
@@ -180,9 +194,9 @@ export const AppLayout: React.FC = () => {
         </button>
         {!collapsed && (
           <p className="px-2.5 pt-2 text-[10px] leading-relaxed text-faint">
-            Clinical decision support only.
+            AI-assisted prototype.
             <br />
-            Not a diagnosis.
+            Not a medical diagnosis.
           </p>
         )}
       </div>
@@ -226,25 +240,21 @@ export const AppLayout: React.FC = () => {
             <span className="truncate font-medium text-ink">{crumb.label}</span>
           </nav>
 
-          <button
-            type="button"
-            onClick={() => setPalette(true)}
-            className="mx-auto flex h-9 w-full max-w-md items-center gap-2 rounded-[10px] border border-hairline bg-sunken px-3 text-[13px] text-faint transition-colors hover:border-hairline-strong"
-          >
-            <Search className="h-4 w-4 shrink-0" />
-            <span className="truncate">Search patients, assessments, reports…</span>
-            <kbd className="ml-auto hidden shrink-0 rounded border border-hairline bg-surface px-1 font-sans text-[10px] leading-4 sm:block">
-              ⌘K
-            </kbd>
-          </button>
+          {clinical && (
+            <button
+              type="button"
+              onClick={() => setPalette(true)}
+              className="mx-auto flex h-9 w-full max-w-md items-center gap-2 rounded-[10px] border border-hairline bg-sunken px-3 text-[13px] text-faint transition-colors hover:border-hairline-strong"
+            >
+              <Search className="h-4 w-4 shrink-0" />
+              <span className="truncate">Search patients and pages</span>
+              <kbd className="ml-auto hidden shrink-0 rounded border border-hairline bg-surface px-1 font-sans text-[10px] leading-4 sm:block">
+                Ctrl K
+              </kbd>
+            </button>
+          )}
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            {(analytics.data?.patients_synthetic ?? 0) > 0 && (
-              <Pill tone="violet" dot className="hidden xl:inline-flex">
-                {analytics.data?.patients_synthetic} synthetic
-              </Pill>
-            )}
-
             <IconButton
               label={theme.resolved === 'dark' ? 'Switch to light' : 'Switch to dark'}
               onClick={theme.toggle}
@@ -252,17 +262,7 @@ export const AppLayout: React.FC = () => {
               {theme.resolved === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </IconButton>
 
-            <IconButton
-              label="Re-sync connected sources"
-              onClick={() => {
-                setSyncing(true);
-                window.setTimeout(() => setSyncing(false), 1400);
-              }}
-              className="hidden sm:grid"
-            >
-              <RefreshCw className={cx('h-4 w-4', syncing && 'animate-spin')} />
-            </IconButton>
-
+            {clinical && (
             <Menu
               width="w-[19rem]"
               header={
@@ -305,6 +305,7 @@ export const AppLayout: React.FC = () => {
                 </button>
               )}
             />
+            )}
 
             <Menu
               width="w-64"
@@ -323,26 +324,20 @@ export const AppLayout: React.FC = () => {
               }
               entries={[
                 {
-                  label: 'Profile & credentials',
+                  label: 'Profile and credentials',
                   icon: <UserRound className="h-3.5 w-3.5" />,
                   onSelect: () => navigate('/settings'),
                 },
                 {
-                  label: 'Workspace settings',
+                  label: 'Settings',
                   icon: <SettingsIcon className="h-3.5 w-3.5" />,
                   onSelect: () => navigate('/settings'),
                 },
                 {
-                  label: theme.preference === 'system' ? 'Theme · follows system' : `Theme · ${theme.preference}`,
+                  label: theme.preference === 'system' ? 'Theme follows the system' : `Theme: ${theme.preference}`,
                   icon: <Moon className="h-3.5 w-3.5" />,
                   onSelect: () =>
                     theme.setPreference(theme.preference === 'system' ? 'light' : theme.preference === 'light' ? 'dark' : 'system'),
-                },
-                {
-                  label: 'Clinical safety notice',
-                  icon: <HelpCircle className="h-3.5 w-3.5" />,
-                  hint: 'v1.0',
-                  onSelect: () => navigate('/settings'),
                 },
                 null,
                 {
@@ -362,14 +357,14 @@ export const AppLayout: React.FC = () => {
                   )}
                 >
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-clinical text-[11px] font-semibold text-white dark:bg-accent dark:text-[#04121f]">
-                    {initials(user?.display_name ?? 'Ahmed B.')}
+                    {initials(user?.display_name)}
                   </span>
                   <span className="hidden text-left leading-tight sm:block">
                     <span className="block text-[12px] font-semibold text-ink">
-                      {user?.display_name ?? 'Dr. Ahmed B.'}
+                      {user?.display_name ?? ''}
                     </span>
                     <span className="block text-[10px] text-mute">
-                      {user?.speciality ?? 'Internal medicine'}
+                      {user?.speciality ?? ROLE_WORD[user?.role ?? ''] ?? ''}
                     </span>
                   </span>
                   <ChevronDown
@@ -386,13 +381,13 @@ export const AppLayout: React.FC = () => {
             <Outlet />
           </div>
           <footer className="mx-auto flex w-full max-w-[1400px] flex-wrap items-center justify-between gap-2 px-4 pb-8 text-[11px] text-faint sm:px-6">
-            <span>Clinical decision support only · Not a diagnosis</span>
-            <span>PainSense AI · {new Date().getFullYear()}</span>
+            <span>{DISCLAIMER}</span>
+            <span>PainSense AI</span>
           </footer>
         </main>
       </div>
 
-      <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      {clinical && <CommandPalette open={palette} onClose={() => setPalette(false)} />}
     </div>
   );
 };

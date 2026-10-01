@@ -27,13 +27,13 @@ from sqlalchemy.orm import selectinload
 from backend.api import schemas
 from backend.behaviour import inference, schema, service
 from backend.behaviour import video as video_module
+from backend.dependencies import ClinicalUser, CurrentUser, DbSession
 from database.models import (
     BehaviourObservation,
     PainAssessment,
     Patient,
     PatientConsent,
 )
-from backend.dependencies import ClinicalUser, CurrentUser, DbSession
 from security import audit
 
 router = APIRouter(prefix="/api/behaviour", tags=["camera and microphone"])

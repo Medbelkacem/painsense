@@ -6,8 +6,10 @@ interface Session {
   user: User | null;
   /** True until the refresh-cookie exchange on first mount has settled. */
   restoring: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<User>;
   signOut: () => Promise<void>;
+  /** Re-read the account after a profile edit, so the header shows the new name. */
+  refreshUser: () => Promise<void>;
 }
 
 const SessionContext = createContext<Session | null>(null);
@@ -34,6 +36,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const signIn = useCallback(async (email: string, password: string) => {
     const token = await api.login(email, password);
     setUser(token.user);
+    return token.user;
   }, []);
 
   const signOut = useCallback(async () => {
@@ -41,9 +44,13 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    setUser(await api.request<User>('/api/auth/me'));
+  }, []);
+
   const value = useMemo(
-    () => ({ user, restoring, signIn, signOut }),
-    [user, restoring, signIn, signOut],
+    () => ({ user, restoring, signIn, signOut, refreshUser }),
+    [user, restoring, signIn, signOut, refreshUser],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 };

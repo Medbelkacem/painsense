@@ -22,7 +22,6 @@ import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 
-from database.models import Granularity, SourceAccess
 from backend.sync import http
 from backend.sync.sources.base import (
     IMAGING,
@@ -32,6 +31,7 @@ from backend.sync.sources.base import (
     Unavailable,
     dominant_format,
 )
+from database.models import Granularity, SourceAccess
 
 API = "https://huggingface.co/api"
 HUB = "https://huggingface.co/datasets"

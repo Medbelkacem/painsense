@@ -477,8 +477,8 @@ each person, and a clinical half of 49 physiotherapy patients rating their pain 
 during treatment. Both are synchronised at 250 Hz.
 
 ```bash
-python -m app.cli train-signal-pain --dataset /path/to/painmonit
-python -m app.cli train-signal-pain --dataset /path/to/painmonit --half clinical
+python -m backend.cli train-signal-pain --dataset /path/to/painmonit
+python -m backend.cli train-signal-pain --dataset /path/to/painmonit --half clinical
 ```
 
 `--dataset` is the directory holding `PMED.zip` and `PMCD.zip`, or their extracted trees.

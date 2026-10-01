@@ -4,12 +4,12 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
 from backend.api import schemas
+from backend.dependencies import CurrentUser, DbSession
 from database.models import (
     AnatomicalRegion,
     AnatomicalStructure,
     AnatomicalStructureType,
 )
-from backend.dependencies import CurrentUser, DbSession
 from knowledge import anatomy
 
 router = APIRouter(prefix="/api/anatomy", tags=["anatomy"])

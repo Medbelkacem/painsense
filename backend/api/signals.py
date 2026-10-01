@@ -21,6 +21,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from backend.api import schemas
+from backend.dependencies import ClinicalUser, CurrentUser, DbSession, ResearchUser, client_ip
+from backend.signals import inference, schema, service, simulate, storage
+from backend.signals.devices.base import DeviceUnavailable
 from database.models import (
     Patient,
     RecordingState,
@@ -28,10 +31,7 @@ from database.models import (
     SignalRecording,
     SignalSource,
 )
-from backend.dependencies import ClinicalUser, CurrentUser, DbSession, ResearchUser, client_ip
 from security import audit
-from backend.signals import inference, schema, service, simulate, storage
-from backend.signals.devices.base import DeviceUnavailable
 
 router = APIRouter(prefix="/api/signals", tags=["eeg and emg"])
 

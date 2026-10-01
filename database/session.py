@@ -28,7 +28,9 @@ class UtcDateTime(TypeDecorator):
 
 settings = get_settings()
 _connect_args = (
-    {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+    {"check_same_thread": False, "timeout": 30}
+    if settings.database_url.startswith("sqlite")
+    else {}
 )
 
 engine = create_engine(settings.database_url, pool_pre_ping=True, connect_args=_connect_args)
@@ -39,10 +41,30 @@ if settings.database_url.startswith("sqlite"):
     @event.listens_for(engine, "connect")
     def _disable_driver_transaction_handling(dbapi_connection, _record):
         dbapi_connection.isolation_level = None
+        # Write-ahead logging lets the form's dozen reads go through while an audit entry
+        # is being signed and written; in the default journal mode they queue behind it
+        # and time out as "database is locked".
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.close()
 
     @event.listens_for(engine, "begin")
     def _emit_begin(connection):
-        connection.exec_driver_sql("BEGIN")
+        # A request's transaction is IMMEDIATE rather than DEFERRED. Nearly every request
+        # reads first and writes afterwards (even reading a patient records an audit
+        # entry), and a deferred transaction cannot upgrade its lock once another writer
+        # has committed: SQLite fails it on the spot instead of waiting. Taking the write
+        # lock up front means requests queue, for up to the busy timeout, and none fails.
+        # Everything else (start-up seeding, the CLI, the test harness) stays deferred.
+        immediate = connection.get_execution_options().get("sqlite_immediate", False)
+        connection.exec_driver_sql("BEGIN IMMEDIATE" if immediate else "BEGIN")
+
+
+def request_connection():
+    """A connection for one HTTP request, with the SQLite locking rule above applied."""
+    return engine.connect().execution_options(sqlite_immediate=True)
 
 
 def serialise_appends(session, name: str) -> None:

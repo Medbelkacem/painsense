@@ -21,9 +21,9 @@ from sqlalchemy import select
 from backend.api import schemas
 from backend.api.assessments import get_assessment
 from backend.api.patients import get_patient
+from backend.dependencies import ClinicalUser, DbSession, client_ip
 from config import get_settings
 from database.models import ADMIN_ROLES, DocumentKind, MedicalDocument, User
-from backend.dependencies import ClinicalUser, DbSession, client_ip
 from security import audit, encryption
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])

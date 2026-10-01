@@ -10,13 +10,14 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from config import get_settings
-from database.session import SessionLocal
-from database.models import ADMIN_ROLES, CLINICAL_ROLES, Role, User
+from database.models import ADMIN_ROLES, CLINICAL_ROLES, VIEWER_ROLES, Role, User
+from database.session import SessionLocal, request_connection
 from security import authentication as auth
 
 
 def get_db() -> Iterator[Session]:
-    db = SessionLocal()
+    connection = request_connection()
+    db = SessionLocal(bind=connection)
     try:
         yield db
     except Exception:
@@ -24,6 +25,7 @@ def get_db() -> Iterator[Session]:
         raise
     finally:
         db.close()
+        connection.close()
 
 
 def _trusted_proxy(address: str | None) -> bool:
@@ -181,6 +183,9 @@ def current_user(request: Request, db: DbSession) -> User:
     if auth.token_issued_before_revocation(user, claims):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Session has been signed out")
     request.state.user = user
+    # Kept as a plain string for the request log: after a handler raises, the session is
+    # rolled back and the instance above can no longer be read.
+    request.state.actor_id = str(user.id)
     return user
 
 
@@ -207,6 +212,9 @@ require_super_admin = require_roles(
 require_clinical = require_roles(
     *CLINICAL_ROLES, message="Patient records are available to clinical accounts only"
 )
+require_viewer = require_roles(
+    *VIEWER_ROLES, message="Patient records are available to clinical and patient accounts"
+)
 require_research = require_roles(
     *ADMIN_ROLES,
     Role.RESEARCHER,
@@ -221,5 +229,6 @@ require_audit = require_roles(
 AdminUser = Annotated[User, Depends(require_admin)]
 SuperAdminUser = Annotated[User, Depends(require_super_admin)]
 ClinicalUser = Annotated[User, Depends(require_clinical)]
+ViewerUser = Annotated[User, Depends(require_viewer)]
 ResearchUser = Annotated[User, Depends(require_research)]
 AuditUser = Annotated[User, Depends(require_audit)]

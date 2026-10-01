@@ -16,7 +16,14 @@ from backend.behaviour import schema as behaviour_schema
 from config import get_settings
 from dataset.synthetic import scenarios as scenario_kb
 from dataset.synthetic import storage
-from dataset.synthetic.archetypes import ARCHETYPES, FLARE, IMPROVING, WORSENING, Archetype, Weighted
+from dataset.synthetic.archetypes import (
+    ARCHETYPES,
+    FLARE,
+    IMPROVING,
+    WORSENING,
+    Archetype,
+    Weighted,
+)
 from knowledge import (
     anatomy,
     confounders,
@@ -2247,8 +2254,8 @@ def load(path: Path) -> Dataset:
 
 
 def register(metadata: dict, path: Path, actor_id=None) -> None:
-    from database.session import SessionLocal
     from database.models import DatasetVersion
+    from database.session import SessionLocal
     from security import audit
 
     counts = metadata.get("counts", {})

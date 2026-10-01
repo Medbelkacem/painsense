@@ -14,7 +14,6 @@ from database.models import AuditLog, LedgerBlock
 from database.session import serialise_appends
 from security import key_management, pqc
 
-
 ZERO_HASH = "0" * 64
 
 

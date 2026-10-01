@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, KeyRound, Lock, Moon, ShieldCheck, Sun, UserRound } from 'lucide-react';
+import { Eye, EyeOff, Lock, Moon, ShieldCheck, Sun, UserRound } from 'lucide-react';
 import { Logo } from '../ui/Logo';
 import { Button, IconButton } from '../ui/Button';
-import { Pill } from '../ui/Pill';
 import { TextField } from '../ui/Field';
 import { Waveform } from '../ui/charts';
 import { useSession } from '../auth/session';
 import { useTheme } from '../theme';
 import { ApiError } from '../api/client';
+import { DISCLAIMER } from '../lib/clinical';
 
 const PIPELINE = [
   { step: '01', title: 'Signal', note: 'Pain reported' },
@@ -26,19 +26,20 @@ export const SignIn: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [reveal, setReveal] = useState(false);
-  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const returnTo = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+  const returnTo = (location.state as { from?: string } | null)?.from ?? null;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await signIn(email, password);
-      navigate(returnTo, { replace: true });
+      const user = await signIn(email, password);
+      navigate(returnTo ?? (user.role === 'PATIENT' ? '/my-record' : '/dashboard'), {
+        replace: true,
+      });
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not reach the server. Try again.');
     } finally {
@@ -89,9 +90,6 @@ export const SignIn: React.FC = () => {
             <Logo size="sm" />
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Pill tone="violet" dot>
-              Synthetic demo environment
-            </Pill>
             <IconButton
               label={theme.resolved === 'dark' ? 'Switch to light' : 'Switch to dark'}
               onClick={theme.toggle}
@@ -112,7 +110,6 @@ export const SignIn: React.FC = () => {
               autoComplete="username"
               required
               icon={<UserRound className="h-4 w-4" />}
-              placeholder="ahmed.b@clinic-demo.dz"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
@@ -136,21 +133,6 @@ export const SignIn: React.FC = () => {
               }
             />
 
-            <div className="flex items-center justify-between">
-              <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-soft">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(event) => setRemember(event.target.checked)}
-                  className="h-4 w-4 rounded-[5px] border-hairline-strong accent-[var(--accent)]"
-                />
-                Remember me
-              </label>
-              <a href="#reset" className="text-[12.5px] font-medium text-accent-ink hover:underline">
-                Forgot password?
-              </a>
-            </div>
-
             {error && (
               <p
                 role="alert"
@@ -163,23 +145,14 @@ export const SignIn: React.FC = () => {
             <Button type="submit" variant="primary" size="lg" disabled={busy} className="w-full">
               {busy ? 'Signing in…' : 'Sign in'}
             </Button>
-
-            <div className="flex items-center gap-3 py-1">
-              <span className="h-px flex-1 bg-hairline" />
-              <span className="text-[11px] text-faint">or</span>
-              <span className="h-px flex-1 bg-hairline" />
-            </div>
-
-            <Button size="lg" className="w-full" icon={<KeyRound className="h-4 w-4" />}>
-              Continue with organisation SSO
-            </Button>
+            <p className="text-[11.5px] leading-relaxed text-faint">
+              Accounts are created by the administrator. A forgotten password is reset by them
+              as well.
+            </p>
           </div>
         </form>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-faint">
-          <span>Clinical decision support only · not a diagnosis</span>
-          <span>v1.0 · build 2026.09</span>
-        </div>
+        <p className="text-[11px] text-faint">{DISCLAIMER}</p>
       </main>
     </div>
   );

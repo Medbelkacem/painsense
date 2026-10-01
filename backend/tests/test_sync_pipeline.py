@@ -12,6 +12,10 @@ import pandas as pd
 import pytest
 from sqlalchemy import select
 
+from backend.sync import service
+from backend.sync import sources as connectors
+from backend.sync.fingerprint import of_directory
+from backend.sync.sources.base import Acquired, Connector, RemoteDataset
 from database.models import (
     Availability,
     Disease,
@@ -27,10 +31,6 @@ from database.models import (
     SyncRun,
     SyncStage,
 )
-from backend.sync import service
-from backend.sync import sources as connectors
-from backend.sync.fingerprint import of_directory
-from backend.sync.sources.base import Acquired, Connector, RemoteDataset
 
 
 def _pain_frame(rows: int = 400, subjects: int = 20) -> pd.DataFrame:

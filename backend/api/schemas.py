@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Literal
@@ -38,9 +39,36 @@ from database.models import (
 )
 from knowledge import profiles, scales
 from knowledge.context import FUNCTIONAL_MAX
+from knowledge.wards import WARDS
 
 Text = Annotated[str, Field(max_length=4000)]
 ShortText = Annotated[str, Field(max_length=255)]
+Ward = Literal[WARDS]
+DurationUnit = Literal["minutes", "hours", "days", "months", "years"]
+HOURS_PER_UNIT = {"minutes": 1 / 60, "hours": 1.0, "days": 24.0, "months": 730.0, "years": 8766.0}
+
+# Algerian numbers: a mobile is 0 then 5, 6 or 7 and eight digits; a landline is 0, a
+# one-digit area code and seven digits. +213 and 00213 stand in for the leading 0.
+_MOBILE = re.compile(r"^0[5-7]\d{8}$")
+_LANDLINE = re.compile(r"^0[1-4]\d{7}$")
+
+
+def algerian_phone(value: str | None) -> str | None:
+    if value is None:
+        return None
+    digits = re.sub(r"[\s().-]", "", value)
+    if not digits:
+        return None
+    if digits.startswith("+213"):
+        digits = "0" + digits[4:]
+    elif digits.startswith("00213"):
+        digits = "0" + digits[5:]
+    if not (_MOBILE.match(digits) or _LANDLINE.match(digits)):
+        raise ValueError(
+            "enter an Algerian number: a mobile such as 05 51 23 45 67 or a landline such "
+            "as 033 12 34 56, with or without +213"
+        )
+    return digits
 Nrs = Annotated[float, Field(ge=0, le=10)]
 ImpactScore = Annotated[int, Field(ge=0, le=FUNCTIONAL_MAX)]
 Language = Literal["en", "fr", "ar"]
@@ -77,6 +105,8 @@ class UserOut(Model):
     last_login_at: datetime | None = None
     preferred_language: Language = "en"
     locked_until: datetime | None = None
+    patient_id: uuid.UUID | None = None
+    patient_code: str | None = None
 
 
 class ProfileUpdate(BaseModel):
@@ -137,6 +167,7 @@ class DoctorCreate(BaseModel):
     phone: ShortText | None = None
     registration_number: ShortText | None = None
     speciality: ShortText | None = None
+    patient_id: uuid.UUID | None = None
 
 
 class DoctorUpdate(BaseModel):
@@ -148,6 +179,7 @@ class DoctorUpdate(BaseModel):
     speciality: ShortText | None = None
     registration_number: ShortText | None = None
     is_active: bool | None = None
+    patient_id: uuid.UUID | None = None
 
 
 class PatientIdentity(BaseModel):
@@ -156,6 +188,21 @@ class PatientIdentity(BaseModel):
     phone: ShortText | None = None
     emergency_contact_name: ShortText | None = None
     emergency_contact_phone: ShortText | None = None
+
+    @field_validator("phone", "emergency_contact_phone")
+    @classmethod
+    def algerian(cls, value: str | None) -> str | None:
+        return algerian_phone(value)
+
+    @field_validator("given_name", "family_name", "emergency_contact_name")
+    @classmethod
+    def trimmed(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("cannot be blank")
+        return value
 
 
 class MedicationIn(BaseModel):
@@ -183,10 +230,17 @@ class ConditionOut(Model):
     note: str | None
 
 
+def _recorded_sex(value: Sex) -> Sex:
+    if value not in (Sex.F, Sex.M):
+        raise ValueError("sex must be F or M")
+    return value
+
+
 class PatientBase(BaseModel):
-    sex: Sex = Sex.UNDISCLOSED
+    sex: Sex
+    age_years: Annotated[int, Field(ge=0, le=120)]
     birth_date: date | None = None
-    ward: ShortText | None = None
+    ward: Ward | None = None
     smoking_status: SmokingStatus = SmokingStatus.UNKNOWN
     medical_history: Text | None = None
     previous_surgeries: Text | None = None
@@ -201,6 +255,11 @@ class PatientBase(BaseModel):
             raise ValueError("date of birth is in the future")
         return value
 
+    @field_validator("sex")
+    @classmethod
+    def female_or_male(cls, value: Sex) -> Sex:
+        return _recorded_sex(value)
+
 
 class PatientCreate(PatientBase):
     identity: PatientIdentity
@@ -212,8 +271,9 @@ class PatientCreate(PatientBase):
 class PatientUpdate(BaseModel):
     identity: PatientIdentity | None = None
     sex: Sex | None = None
+    age_years: Annotated[int, Field(ge=0, le=120)] | None = None
     birth_date: date | None = None
-    ward: ShortText | None = None
+    ward: Ward | None = None
     smoking_status: SmokingStatus | None = None
     medical_history: Text | None = None
     previous_surgeries: Text | None = None
@@ -222,6 +282,23 @@ class PatientUpdate(BaseModel):
     lifestyle_notes: Text | None = None
     condition_codes: list[str] | None = None
     medications: list[MedicationIn] | None = None
+
+    @field_validator("sex")
+    @classmethod
+    def female_or_male(cls, value: Sex | None) -> Sex | None:
+        return None if value is None else _recorded_sex(value)
+
+
+class FindingOut(BaseModel):
+    code: str
+    level: Literal["WARNING", "URGENT"]
+    message: str
+
+
+class ClinicianOut(BaseModel):
+    display_name: str
+    speciality: str | None = None
+    registration_number: str | None = None
 
 
 class PatientSummary(BaseModel):
@@ -242,6 +319,7 @@ class PatientSummary(BaseModel):
 
 class PatientDetail(PatientSummary):
     identity: PatientIdentity | None
+    age_years: int | None
     birth_date: date | None
     smoking_status: SmokingStatus
     medical_history: str | None
@@ -251,6 +329,7 @@ class PatientDetail(PatientSummary):
     lifestyle_notes: str | None
     conditions: list[ConditionOut]
     medications: list[MedicationOut]
+    warnings: list[FindingOut]
     created_at: datetime
 
 
@@ -541,7 +620,8 @@ class AssessmentBase(BaseModel):
     onset: Onset = Onset.UNKNOWN
     onset_speed: OnsetSpeed = OnsetSpeed.UNKNOWN
     started_at: datetime | None = None
-    duration_hours: Annotated[float, Field(ge=0, le=900_000)] | None = None
+    duration_value: Annotated[float, Field(ge=0, le=100_000)] | None = None
+    duration_unit: DurationUnit | None = None
     pattern: Pattern = Pattern.UNKNOWN
     course: Course = Course.UNKNOWN
     recurrent: bool = False
@@ -562,6 +642,9 @@ class AssessmentBase(BaseModel):
     radiation_weakness: bool = False
     recent_trauma: bool = False
     recent_surgery: bool = False
+    symptoms_note: Text | None = None
+    aggravating_note: Text | None = None
+    relieving_note: Text | None = None
     # The population this patient is read as. Left out, age decides.
     profile_code: Annotated[str, Field(max_length=48)] | None = None
     profile_modifiers: list[Annotated[str, Field(max_length=48)]] = Field(
@@ -569,6 +652,12 @@ class AssessmentBase(BaseModel):
     )
     pregnancy_trimester: Annotated[int, Field(ge=1, le=3)] | None = None
     expected_pain: bool = False
+
+    @model_validator(mode="after")
+    def duration_has_a_unit(self):
+        if (self.duration_value is None) != (self.duration_unit is None):
+            raise ValueError("a duration needs both a number and a unit")
+        return self
 
     @model_validator(mode="after")
     def profile_is_known(self):
@@ -616,7 +705,8 @@ class AssessmentUpdate(BaseModel):
     onset: Onset | None = None
     onset_speed: OnsetSpeed | None = None
     started_at: datetime | None = None
-    duration_hours: Annotated[float, Field(ge=0, le=900_000)] | None = None
+    duration_value: Annotated[float, Field(ge=0, le=100_000)] | None = None
+    duration_unit: DurationUnit | None = None
     pattern: Pattern | None = None
     course: Course | None = None
     recurrent: bool | None = None
@@ -637,6 +727,9 @@ class AssessmentUpdate(BaseModel):
     radiation_weakness: bool | None = None
     recent_trauma: bool | None = None
     recent_surgery: bool | None = None
+    symptoms_note: Text | None = None
+    aggravating_note: Text | None = None
+    relieving_note: Text | None = None
     locations: list[LocationIn] | None = None
     anatomical_sites: Annotated[list[AnatomicalSiteIn], Field(max_length=30)] | None = None
     quality_codes: list[str] | None = None
@@ -647,6 +740,12 @@ class AssessmentUpdate(BaseModel):
     answers: dict[str, object] | None = None
     measurement: MeasurementIn | None = None
     self_report: SelfReportIn | None = None
+
+    @model_validator(mode="after")
+    def duration_has_a_unit(self):
+        if (self.duration_value is None) != (self.duration_unit is None):
+            raise ValueError("a duration needs both a number and a unit")
+        return self
 
 
 class ReviewIn(BaseModel):
@@ -753,6 +852,8 @@ class AssessmentSummary(BaseModel):
 
 class AssessmentDetail(AssessmentSummary):
     doctor_id: uuid.UUID
+    recorded_by: ClinicianOut | None
+    validated_by_name: str | None
     updated_at: datetime
     validated_at: datetime | None
     review_agreement: ReviewAgreement | None
@@ -760,7 +861,10 @@ class AssessmentDetail(AssessmentSummary):
     onset: Onset
     onset_speed: OnsetSpeed
     started_at: datetime | None
+    duration_value: float | None
+    duration_unit: DurationUnit | None
     duration_hours: float | None
+    duration_label: str
     pattern: Pattern
     course: Course
     recurrent: bool
@@ -781,6 +885,9 @@ class AssessmentDetail(AssessmentSummary):
     radiation_weakness: bool
     recent_trauma: bool
     recent_surgery: bool
+    symptoms_note: str | None
+    aggravating_note: str | None
+    relieving_note: str | None
     locations: list[LocationIn]
     anatomical_sites: list[AnatomicalSiteOut]
     quality_codes: list[str]
@@ -794,6 +901,8 @@ class AssessmentDetail(AssessmentSummary):
     prediction: PredictionOut | None
     notes: list[NoteOut]
     document_count: int
+    warnings: list[FindingOut]
+    urgent_review: bool
 
     completeness: float
     missing_fields: list[str]
@@ -1100,7 +1209,6 @@ class DocumentFindings(BaseModel):
 
 class AnalyticsOut(BaseModel):
     patients_total: int
-    patients_synthetic: int
     assessments_total: int
     assessments_today: int
     assessments_awaiting_validation: int

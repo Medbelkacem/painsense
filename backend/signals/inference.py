@@ -26,8 +26,8 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from database.models import ModelVersion
 from backend.signals import schema
+from database.models import ModelVersion
 
 #: The registry name a model must carry to be offered signal features.
 MODEL_NAME = "eeg-emg-pain"

@@ -24,6 +24,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.sync import fingerprint, licensing
+from backend.sync.sources import RemoteDataset
 from database.models import (
     Availability,
     ExternalDataset,
@@ -33,8 +35,6 @@ from database.models import (
     SyncRun,
     SyncStage,
 )
-from backend.sync import fingerprint, licensing
-from backend.sync.sources import RemoteDataset
 
 logger = logging.getLogger("painsense.sync")
 

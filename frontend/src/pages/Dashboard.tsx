@@ -143,15 +143,7 @@ export const Dashboard: React.FC = () => {
         <Stat
           label="Patients"
           value={loading ? '—' : (data?.patients_total ?? 0)}
-          note={
-            (data?.patients_synthetic ?? 0) > 0 ? (
-              <Pill tone="violet" size="xs">
-                {data?.patients_synthetic} synthetic
-              </Pill>
-            ) : (
-              <span className="text-[11px] text-faint">All records real</span>
-            )
-          }
+          note={<span className="text-[11px] text-faint">On file in this workspace</span>}
           icon={<Users className="h-4 w-4" />}
           to="/patients"
         />
